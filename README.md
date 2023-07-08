@@ -41,4 +41,4 @@ The chess pieces images are downloaded from [Pixabay](https://pixabay.com/).
 For any inquiries or feedback, feel free to contact me via:
 
 - Website: [davymaish.github.io](https://davymaish.github.io)
-- Email: [davidmainadmg05@gmail.com](mailto:davidmainadmg05@gmail.com)
+- Email: [davymaish6@gmail.com](mailto:davymaish6@gmail.com)
