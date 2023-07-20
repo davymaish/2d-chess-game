@@ -79,7 +79,9 @@ class Game {
 
 	filterPositions(positions) {
 		return positions.filter(pos => {
-			return pos > 10 && pos < 89
+			const rank = Math.floor(pos / 10);
+			const file = pos % 10;
+			return rank >= 1 && rank <= 8 && file >= 1 && file <= 8;
 		});
 	};
 
