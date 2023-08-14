@@ -281,3 +281,14 @@ test('stalemate announces a draw and clears check styling', () => {
     context.document.getElementById = originalGetElementById;
   }
 });
+
+test('black king has no legal moves but is not in check in a known stalemate position', () => {
+  const King = pieceClass('King');
+  const Queen = pieceClass('Queen');
+  const blackKing = new King(88, 'blackKing');
+  const whiteKing = new King(76, 'whiteKing');
+  const whiteQueen = new Queen(67, 'whiteQueen');
+  const game = createGame([blackKing, whiteKing, whiteQueen], blackKing);
+
+  assert.equal(game.getGameOutcome('black'), 'stalemate');
+});
