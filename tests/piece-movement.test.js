@@ -345,3 +345,18 @@ test('king cannot castle out of check or through an attacked transit square', ()
   assert.equal(transitMoves.includes(17), false, 'kingside castling crosses attacked f1');
   assert.ok(transitMoves.includes(13), 'queenside castling remains legal');
 });
+
+test('king and rook permanently lose castling rights after moving and returning', () => {
+  const King = pieceClass('King');
+  const Rook = pieceClass('Rook');
+  const king = new King(15, 'whiteKing');
+  const rook = new Rook(18, 'whiteRook2');
+
+  king.changePosition(16, true);
+  king.changePosition(15, true);
+  rook.changePosition(28);
+  rook.changePosition(18);
+
+  assert.equal(king.ableToCastle, false);
+  assert.equal(rook.ableToCastle, false);
+});
