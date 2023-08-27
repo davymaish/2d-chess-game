@@ -292,3 +292,56 @@ test('black king has no legal moves but is not in check in a known stalemate pos
 
   assert.equal(game.getGameOutcome('black'), 'stalemate');
 });
+
+test('king may castle on either side when the path is clear and safe', () => {
+  const King = pieceClass('King');
+  const Rook = pieceClass('Rook');
+  const whiteKing = new King(15, 'whiteKing');
+  const game = createGame([
+    whiteKing,
+    new Rook(11, 'whiteRook1'),
+    new Rook(18, 'whiteRook2'),
+    new King(88, 'blackKing'),
+  ], whiteKing);
+  game.turn = 'white';
+
+  const candidateMoves = game.getCastlingSquares(whiteKing.getAllowedMoves());
+  const legalMoves = [...game.unblockedPositions(candidateMoves, whiteKing.position, 'white', true)];
+
+  assert.ok(legalMoves.includes(13), 'queenside castling should be available');
+  assert.ok(legalMoves.includes(17), 'kingside castling should be available');
+});
+
+test('king cannot castle out of check or through an attacked transit square', () => {
+  const King = pieceClass('King');
+  const Rook = pieceClass('Rook');
+  const whiteKing = new King(15, 'whiteKing');
+  const checkedGame = createGame([
+    whiteKing,
+    new Rook(11, 'whiteRook1'),
+    new Rook(18, 'whiteRook2'),
+    new King(88, 'blackKing'),
+    new Rook(85, 'blackRook1'),
+  ], whiteKing);
+  checkedGame.turn = 'white';
+  const checkedCandidates = checkedGame.getCastlingSquares(whiteKing.getAllowedMoves());
+  const checkedMoves = [...checkedGame.unblockedPositions(checkedCandidates, whiteKing.position, 'white', true)];
+
+  assert.equal(checkedMoves.includes(13), false);
+  assert.equal(checkedMoves.includes(17), false);
+
+  const transitKing = new King(15, 'whiteKing');
+  const transitGame = createGame([
+    transitKing,
+    new Rook(11, 'whiteRook1'),
+    new Rook(18, 'whiteRook2'),
+    new King(88, 'blackKing'),
+    new Rook(86, 'blackRook1'),
+  ], transitKing);
+  transitGame.turn = 'white';
+  const transitCandidates = transitGame.getCastlingSquares(transitKing.getAllowedMoves());
+  const transitMoves = [...transitGame.unblockedPositions(transitCandidates, transitKing.position, 'white', true)];
+
+  assert.equal(transitMoves.includes(17), false, 'kingside castling crosses attacked f1');
+  assert.ok(transitMoves.includes(13), 'queenside castling remains legal');
+});
