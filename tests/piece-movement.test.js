@@ -360,3 +360,113 @@ test('king and rook permanently lose castling rights after moving and returning'
   assert.equal(king.ableToCastle, false);
   assert.equal(rook.ableToCastle, false);
 });
+
+function legalPawnMoves(game, pawn) {
+  game.clickedPiece = pawn;
+  return [...game.unblockedPositions(pawn.getAllowedMoves(), pawn.position, pawn.color, true)];
+}
+
+test('a pawn two-square advance creates an en passant target that expires after the next move', () => {
+  const Pawn = pieceClass('Pawn');
+  const Knight = pieceClass('Knight');
+  const blackPawn = new Pawn(56, 'blackPawn6');
+  const game = createGame([blackPawn], blackPawn);
+
+  game.recordEnPassantOpportunity(blackPawn, 76, 56);
+  assert.equal(game.enPassantTarget, 66);
+  assert.equal(game.enPassantPawn, blackPawn);
+
+  game.recordEnPassantOpportunity(new Knight(12, 'whiteKnight1'), 12, 33);
+  assert.equal(game.enPassantTarget, null);
+  assert.equal(game.enPassantPawn, null);
+});
+
+test('white pawn may capture a black pawn en passant on the immediately following move', () => {
+  const King = pieceClass('King');
+  const Pawn = pieceClass('Pawn');
+  const whiteKing = new King(15, 'whiteKing');
+  const whitePawn = new Pawn(55, 'whitePawn5');
+  const blackPawn = new Pawn(56, 'blackPawn6');
+  const game = createGame([whiteKing, whitePawn, blackPawn, new King(88, 'blackKing')], whitePawn);
+  game.recordEnPassantOpportunity(blackPawn, 76, 56);
+
+  const moves = legalPawnMoves(game, whitePawn);
+
+  assert.ok(moves.includes(66));
+  assert.equal(game.getPieceByPos(66), undefined, 'the capture target square is empty before the move');
+});
+
+test('black pawn may capture a white pawn en passant after its two-square advance', () => {
+  const King = pieceClass('King');
+  const Pawn = pieceClass('Pawn');
+  const whitePawn = new Pawn(45, 'whitePawn5');
+  const blackPawn = new Pawn(44, 'blackPawn4');
+  const game = createGame([new King(11, 'whiteKing'), whitePawn, blackPawn, new King(88, 'blackKing')], blackPawn);
+  game.recordEnPassantOpportunity(whitePawn, 25, 45);
+
+  const moves = legalPawnMoves(game, blackPawn);
+
+  assert.ok(moves.includes(35));
+});
+
+test('en passant is illegal when removing both pawns exposes the moving king to a rook', () => {
+  const King = pieceClass('King');
+  const Pawn = pieceClass('Pawn');
+  const Rook = pieceClass('Rook');
+  const whiteKing = new King(51, 'whiteKing');
+  const whitePawn = new Pawn(55, 'whitePawn5');
+  const blackPawn = new Pawn(56, 'blackPawn6');
+  const game = createGame([
+    whiteKing,
+    whitePawn,
+    blackPawn,
+    new Rook(58, 'blackRook1'),
+    new King(88, 'blackKing'),
+  ], whitePawn);
+  game.recordEnPassantOpportunity(blackPawn, 76, 56);
+
+  assert.equal(legalPawnMoves(game, whitePawn).includes(66), false);
+});
+
+test('en passant removes the adjacent pawn, moves the capturing pawn, and ends the opportunity', () => {
+  const King = pieceClass('King');
+  const Pawn = pieceClass('Pawn');
+  const whiteKing = new King(15, 'whiteKing');
+  const whitePawn = new Pawn(55, 'whitePawn5');
+  const blackPawn = new Pawn(56, 'blackPawn6');
+  const game = createGame([whiteKing, whitePawn, blackPawn, new King(88, 'blackKing')], whitePawn);
+  const capturedSlot = { append: (image) => { image.parentNode = capturedSlot; } };
+  const blackGraveyard = { querySelector: () => capturedSlot };
+  const originalSquare = { removeChild: (image) => { image.parentNode = null; } };
+  const targetSquare = {
+    id: '66',
+    classList: { contains: (name) => name === 'allowed' },
+    getAttribute: (name) => name === 'id' ? '66' : null,
+    append: (image) => { image.parentNode = targetSquare; },
+  };
+  const originalGetElementsByClassName = context.document.getElementsByClassName;
+  game.turn = 'white';
+  game.board = { querySelectorAll: () => [] };
+  game.squares = [];
+  game.turnSign = { innerHTML: '' };
+  game.gameStatus = { textContent: '', classList: { add() {}, remove() {} } };
+  game.whiteSematary = { querySelector: () => ({ append() {} }) };
+  game.blackSematary = blackGraveyard;
+  blackPawn.img.parentNode = originalSquare;
+  game.recordEnPassantOpportunity(blackPawn, 76, 56);
+  context.document.getElementsByClassName = () => [];
+
+  try {
+    game.movePiece(null, targetSquare);
+  }
+  finally {
+    context.document.getElementsByClassName = originalGetElementsByClassName;
+  }
+
+  assert.equal(whitePawn.position, 66);
+  assert.equal(game.getPieceByPos(56), undefined);
+  assert.equal(game.pieces.includes(blackPawn), false);
+  assert.equal(blackPawn.img.parentNode, capturedSlot);
+  assert.equal(game.turn, 'black');
+  assert.equal(game.enPassantTarget, null);
+});
