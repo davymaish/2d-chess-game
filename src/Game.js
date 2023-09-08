@@ -8,6 +8,8 @@ class Game {
 		this.squares = this.board.querySelectorAll('.square');
 		this.pieces  = pieces;
 		this.turn    = 'white';
+		this.enPassantTarget = null;
+		this.enPassantPawn = null;
 		this.turnSign = document.getElementById('turn');
 		this.gameStatus = document.getElementById('game-status');
 		this.clickedPiece = null;
@@ -101,10 +103,28 @@ class Game {
 	filterPositions(positions) {
 		return positions.filter(pos => {
 			const rank = Math.floor(pos / 10);
-			const file = pos % 10;
-			return rank >= 1 && rank <= 8 && file >= 1 && file <= 8;
-		});
-	};
+				const file = pos % 10;
+				return rank >= 1 && rank <= 8 && file >= 1 && file <= 8;
+			});
+		};
+
+	getEnPassantCapture(targetPosition) {
+		const movingPawn = this.clickedPiece;
+		const capturedPawn = this.enPassantPawn;
+		const target = parseInt(targetPosition);
+		if (!movingPawn || !movingPawn.hasRank('pawn') || !capturedPawn ||
+			!capturedPawn.hasRank('pawn') || capturedPawn.color === movingPawn.color ||
+			target !== this.enPassantTarget || this.getPieceByPos(target)) return null;
+
+		const movingRank = Math.floor(movingPawn.position / 10);
+		const capturedRank = Math.floor(capturedPawn.position / 10);
+		if (movingRank !== capturedRank ||
+			Math.abs(movingPawn.position % 10 - capturedPawn.position % 10) !== 1 ||
+			target % 10 !== capturedPawn.position % 10) return null;
+
+		const expectedTarget = capturedPawn.position + (movingPawn.color === 'white' ? 10 : -10);
+		return target === expectedTarget ? capturedPawn : null;
+	}
 
 	unblockedPositions(allowedPositions=[], position, color, checking=true){
 		position = parseInt(position);
@@ -121,8 +141,9 @@ class Game {
 		
 		if (this.clickedPiece.hasRank('pawn')) {
 			for (const move of allowedPositions[0]) { //attacking moves
-				if (checking && this.myKingChecked(move)) continue;
-				if (otherBlockedPositions.indexOf(move) != -1) unblockedPositions.push(move);
+				const enPassantCapture = this.getEnPassantCapture(move);
+				if (checking && this.myKingChecked(move, true, enPassantCapture)) continue;
+				if (otherBlockedPositions.indexOf(move) != -1 || enPassantCapture) unblockedPositions.push(move);
 			}
 			const blockedPositions = myBlockedPositions + otherBlockedPositions;
 			for (const move of allowedPositions[1]) { //moving moves
@@ -215,16 +236,35 @@ class Game {
 		this.clickedPiece = piece;
 	}
 
+	recordEnPassantOpportunity(piece, fromPosition, toPosition) {
+		this.enPassantTarget = null;
+		this.enPassantPawn = null;
+		if (!piece.hasRank('pawn')) return;
+
+		const from = parseInt(fromPosition);
+		const to = parseInt(toPosition);
+		const startingRank = piece.color === 'white' ? 2 : 7;
+		const doubleStep = piece.color === 'white' ? 20 : -20;
+		if (Math.floor(from / 10) !== startingRank || to - from !== doubleStep) return;
+
+		this.enPassantTarget = from + doubleStep / 2;
+		this.enPassantPawn = piece;
+	}
+
 	movePiece(event, square='') {
 		square = square || event.target;
 		if (square.classList.contains('allowed')) {
-			const clickedPiece = this.clickedPiece;
-			if (clickedPiece) {
-				const newPosition = square.getAttribute('id');
-				if (clickedPiece.hasRank('king') || clickedPiece.hasRank('pawn'))
-					clickedPiece.changePosition(newPosition, true);
-				else
-					clickedPiece.changePosition(newPosition);
+				const clickedPiece = this.clickedPiece;
+				if (clickedPiece) {
+					const newPosition = square.getAttribute('id');
+					const originalPosition = parseInt(clickedPiece.position);
+					const enPassantCapture = this.getEnPassantCapture(newPosition);
+					if (enPassantCapture) this.capturePiece(enPassantCapture);
+					if (clickedPiece.hasRank('king') || clickedPiece.hasRank('pawn'))
+						clickedPiece.changePosition(newPosition, true);
+					else
+						clickedPiece.changePosition(newPosition);
+					this.recordEnPassantOpportunity(clickedPiece, originalPosition, newPosition);
 					square.append(clickedPiece.img);
 					this.clearSquares();
 					this.changeTurn();
@@ -240,15 +280,19 @@ class Game {
 		if (event) event.preventDefault();
 	}
 
-	kill(piece) {
+	capturePiece(piece) {
 		piece.img.parentNode.removeChild(piece.img);
 		piece.img.className = '';
 
 		if (piece.color == 'white') this.whiteSematary.querySelector('.'+piece.rank).append(piece.img);
 		else this.blackSematary.querySelector('.'+piece.rank).append(piece.img);
 
-		const chosenSquare = document.getElementById(piece.position);
 		this.pieces.splice(this.pieces.indexOf(piece), 1);
+	}
+
+	kill(piece) {
+		this.capturePiece(piece);
+		const chosenSquare = document.getElementById(piece.position);
 		this.movePiece('', chosenSquare);
 	}
 
@@ -273,21 +317,21 @@ class Game {
 		this.pieces.push( new Queen(pawn.position, queenName) );
 	}
 
-	myKingChecked(pos, kill=true){
+	myKingChecked(pos, kill=true, capturedPiece=null){
 		const piece = this.clickedPiece;
 		const originalPosition = piece.position;
-		const otherPiece = this.getPieceByPos(pos);
-		const should_kill_other_piece = kill && otherPiece && otherPiece.rank != 'king';
+		const pieceToCapture = capturedPiece || this.getPieceByPos(pos);
+		const should_kill_other_piece = kill && pieceToCapture && pieceToCapture.rank != 'king';
 		piece.changePosition(pos);
-		if (should_kill_other_piece) this.pieces.splice(this.pieces.indexOf(otherPiece), 1);
+		if (should_kill_other_piece) this.pieces.splice(this.pieces.indexOf(pieceToCapture), 1);
 		if (this.king_checked(piece.color)) {
 			piece.changePosition(originalPosition);
-			if (should_kill_other_piece) this.pieces.push(otherPiece);
+			if (should_kill_other_piece) this.pieces.push(pieceToCapture);
 			return 1;
 		}
 		else{
 			piece.changePosition(originalPosition);
-			if (should_kill_other_piece) this.pieces.push(otherPiece);
+			if (should_kill_other_piece) this.pieces.push(pieceToCapture);
 			return 0;
 		}
 	}
