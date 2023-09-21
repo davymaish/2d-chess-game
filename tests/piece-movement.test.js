@@ -470,3 +470,98 @@ test('en passant removes the adjacent pawn, moves the capturing pawn, and ends t
   assert.equal(game.turn, 'black');
   assert.equal(game.enPassantTarget, null);
 });
+
+test('a pawn reaching the last rank waits for a promotion choice before ending the turn', () => {
+  const Pawn = pieceClass('Pawn');
+  const pawn = new Pawn(78, 'whitePawn8');
+  pawn.img.src = './assets/img/whitePawn.png';
+  const game = createGame([pawn], pawn);
+  let finishedMoves = 0;
+  game.turn = 'white';
+  game.promotionDialog = {
+    open: false,
+    showModal() { this.open = true; },
+    close() { this.open = false; },
+    querySelector() { return { focus() {} }; },
+  };
+  game.board = { querySelectorAll: () => [] };
+  game.finishMove = () => { finishedMoves += 1; };
+  const targetSquare = {
+    classList: { contains: (name) => name === 'allowed' },
+    getAttribute: (name) => name === 'id' ? '88' : null,
+    append: (image) => { image.parentNode = targetSquare; },
+  };
+  const originalGame = context.game;
+  const originalGetElementsByClassName = context.document.getElementsByClassName;
+  context.game = game;
+  context.document.getElementsByClassName = () => [];
+
+  try {
+    game.movePiece(null, targetSquare);
+  }
+  finally {
+    if (originalGame === undefined) delete context.game;
+    else context.game = originalGame;
+    context.document.getElementsByClassName = originalGetElementsByClassName;
+  }
+
+  assert.equal(pawn.position, 88);
+  assert.equal(game.pendingPromotion, pawn);
+  assert.equal(game.promotionDialog.open, true);
+  assert.equal(game.turn, 'white');
+  assert.equal(finishedMoves, 0);
+});
+
+test('promotion offers queen, rook, bishop, and knight with unique identities and matching sprites', () => {
+  const Pawn = pieceClass('Pawn');
+  const choices = ['queen', 'rook', 'bishop', 'knight'];
+  const pawns = choices.map((choice, index) => {
+    const pawn = new Pawn(81 + index, `whitePawn${index + 1}`);
+    pawn.img.src = './assets/img/whitePawn.png';
+    pawn.img.className = 'piece pawn';
+    return pawn;
+  });
+  const game = createGame([...pawns], null);
+  const finishedColors = [];
+  game.promotionCounter = 0;
+  game.promotionDialog = { open: false, close() { this.open = false; } };
+  game.finishMove = (color) => { finishedColors.push(color); };
+  const originalGetElementById = context.document.getElementById;
+  context.document.getElementById = (id) => pawns.find((pawn) => pawn.img.id === id)?.img || { id };
+
+  try {
+    game.pendingPromotion = pawns[0];
+    game.promotionDialog.open = true;
+    assert.equal(game.promote(pawns[0], 'king'), null, 'only the four legal promotion pieces are accepted');
+    assert.equal(game.pendingPromotion, pawns[0]);
+    assert.equal(game.pieces.includes(pawns[0]), true);
+
+    for (let index = 0; index < choices.length; index += 1) {
+      const pawn = pawns[index];
+      const choice = choices[index];
+      game.pendingPromotion = pawn;
+      game.promotionDialog.open = true;
+      game.selectPromotion({
+        currentTarget: { getAttribute: (name) => name === 'data-promotion' ? choice : null },
+      });
+
+      const promotedPiece = game.pieces.find((piece) => piece.img === pawn.img);
+      const capitalizedChoice = choice[0].toUpperCase() + choice.slice(1);
+      assert.equal(promotedPiece.rank, choice);
+      assert.equal(promotedPiece.position, pawn.position);
+      assert.equal(promotedPiece.img.className, `piece ${choice}`);
+      assert.equal(promotedPiece.img.src, `./assets/img/white${capitalizedChoice}.png`);
+      assert.match(promotedPiece.name, new RegExp(`^white${capitalizedChoice}Promoted\\d+$`));
+      assert.equal(promotedPiece.img.id, promotedPiece.name);
+      assert.equal(game.pendingPromotion, null);
+      assert.equal(game.promotionDialog.open, false);
+    }
+  }
+  finally {
+    context.document.getElementById = originalGetElementById;
+  }
+
+  const promotedNames = game.pieces.map((piece) => piece.name).filter((name) => name.includes('Promoted'));
+  assert.equal(new Set(promotedNames).size, 4);
+  assert.deepEqual(finishedColors, ['white', 'white', 'white', 'white']);
+});
