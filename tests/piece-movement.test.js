@@ -696,3 +696,108 @@ test('finishMove presents an insufficient-material outcome as a draw', () => {
 
   assert.equal(drawAnnounced, true);
 });
+
+test('half-move clock resets for pawn moves and captures, and advances for quiet piece moves', () => {
+  const King = pieceClass('King');
+  const Pawn = pieceClass('Pawn');
+  const Rook = pieceClass('Rook');
+  const game = createGame([], null);
+  game.halfmoveClock = 0;
+
+  game.recordHalfmove(new Rook(11, 'whiteRook1'), false);
+  game.recordHalfmove(new King(15, 'whiteKing'), false);
+  assert.equal(game.halfmoveClock, 2);
+
+  game.recordHalfmove(new Pawn(21, 'whitePawn1'), false);
+  assert.equal(game.halfmoveClock, 0);
+
+  game.halfmoveClock = 37;
+  game.recordHalfmove(new Rook(11, 'whiteRook1'), true);
+  assert.equal(game.halfmoveClock, 0);
+});
+
+test('castling rook movement does not count as an additional half-move', () => {
+  const Rook = pieceClass('Rook');
+  const rook = new Rook(11, 'whiteRook1');
+  const game = createGame([rook], rook);
+  const targetSquare = {
+    classList: {
+      contains: (name) => name === 'allowed',
+      add() {},
+    },
+    getAttribute: (name) => name === 'id' ? '14' : null,
+    append() {},
+  };
+  const originalGetElementById = context.document.getElementById;
+  game.halfmoveClock = 12;
+  game.getPieceByName = () => rook;
+  game.clearSquares = () => {};
+  game.finishMove = () => {};
+  game.changeTurn = () => {};
+  context.document.getElementById = () => targetSquare;
+
+  try {
+    game.castleRook('whiteRook1');
+  }
+  finally {
+    context.document.getElementById = originalGetElementById;
+  }
+
+  assert.equal(game.halfmoveClock, 12);
+  assert.equal(game.isCastlingRookMove, false);
+});
+
+test('the fifty-move draw is reached at 100 half-moves unless checkmate or stalemate takes precedence', () => {
+  const King = pieceClass('King');
+  const Rook = pieceClass('Rook');
+  const whiteKing = new King(15, 'whiteKing');
+  const game = createGame([whiteKing, new King(85, 'blackKing'), new Rook(11, 'whiteRook1')], whiteKing);
+  game.halfmoveClock = 99;
+  game.king_checked = () => false;
+  game.king_dead = () => false;
+
+  game.recordHalfmove(whiteKing, false);
+  assert.equal(game.halfmoveClock, 100);
+  assert.equal(game.getGameOutcome('black'), 'fifty-move-draw');
+
+  game.king_dead = () => true;
+  assert.equal(game.getGameOutcome('black'), 'stalemate');
+  game.king_checked = () => true;
+  assert.equal(game.getGameOutcome('black'), 'checkmate');
+});
+
+test('finishMove announces the fifty-move draw in the end scene and live status', () => {
+  const makeClassList = () => {
+    const values = new Set();
+    return {
+      add: (value) => values.add(value),
+      remove: (value) => values.delete(value),
+      contains: (value) => values.has(value),
+    };
+  };
+  const message = { textContent: '' };
+  const endScene = {
+    classList: makeClassList(),
+    getElementsByClassName: () => [message],
+  };
+  const statusClassList = makeClassList();
+  const originalGetElementById = context.document.getElementById;
+  context.document.getElementById = (id) => id === 'endscene' ? endScene : null;
+
+  try {
+    const game = createGame([], null);
+    game.gameStatus = { textContent: '', classList: statusClassList };
+    game.changeTurn = () => {};
+    game.getGameOutcome = () => 'fifty-move-draw';
+    game.updateCheckStatus = () => {};
+
+    game.finishMove('white');
+
+    assert.equal(message.textContent, 'Draw by the fifty-move rule.');
+    assert.equal(game.gameStatus.textContent, 'Draw by the fifty-move rule.');
+    assert.equal(endScene.classList.contains('show'), true);
+  }
+  finally {
+    context.document.getElementById = originalGetElementById;
+  }
+});
