@@ -16,6 +16,8 @@ class Game {
 		this.halfmoveClock = 0;
 		this.pendingCapture = false;
 		this.isCastlingRookMove = false;
+		this.positionCounts = new Map();
+		this.recordPosition();
 		this.turnSign = document.getElementById('turn');
 		this.gameStatus = document.getElementById('game-status');
 		this.clickedPiece = null;
@@ -289,12 +291,14 @@ class Game {
 
 	finishMove(movingColor) {
 		this.changeTurn();
+		if (!this.isCastlingRookMove) this.recordPosition();
 		const outcome = this.getGameOutcome(this.turn);
 		this.updateCheckStatus(outcome === 'check' || outcome === 'checkmate');
 		if (outcome === 'checkmate') this.checkmate(movingColor);
 		else if (outcome === 'stalemate') this.stalemate();
 		else if (outcome === 'insufficient-material') this.drawByInsufficientMaterial();
 		else if (outcome === 'fifty-move-draw') this.drawByFiftyMoveRule();
+		else if (outcome === 'threefold-repetition') this.drawByThreefoldRepetition();
 	}
 
 	recordHalfmove(piece, isCapture) {
@@ -408,7 +412,53 @@ class Game {
 		if (noLegalMoves) return checked ? 'checkmate' : 'stalemate';
 		if (this.hasInsufficientMaterial()) return 'insufficient-material';
 		if (this.halfmoveClock >= 100) return 'fifty-move-draw';
+		if (this.hasThreefoldRepetition()) return 'threefold-repetition';
 		return checked ? 'check' : 'ongoing';
+	}
+
+	getAvailableEnPassantTarget() {
+		if (this.enPassantTarget == null || !this.enPassantPawn) return null;
+		const previousPiece = this.clickedPiece;
+		const target = parseInt(this.enPassantTarget);
+		for (const pawn of this.pieces.filter(piece => piece.rank === 'pawn' && piece.color === this.turn)) {
+			this.setClickedPiece(pawn);
+			const legalMoves = this.unblockedPositions(pawn.getAllowedMoves(), pawn.position, pawn.color, true);
+			if (legalMoves.includes(target)) {
+				this.setClickedPiece(previousPiece);
+				return target;
+			}
+		}
+		this.setClickedPiece(previousPiece);
+		return null;
+	}
+
+	getPositionKey() {
+		const board = this.pieces
+			.map(piece => `${piece.color}:${piece.rank}:${parseInt(piece.position)}`)
+			.sort()
+			.join(',');
+		const castlingRights = ['white', 'black'].map(color => {
+			const king = this.getPieceByName(color + 'King');
+			if (!king || !king.ableToCastle) return `${color}:-`;
+			const queenSideRook = this.getPieceByName(color + 'Rook1');
+			const kingSideRook = this.getPieceByName(color + 'Rook2');
+			return `${color}:${queenSideRook && queenSideRook.ableToCastle ? 'Q' : ''}${kingSideRook && kingSideRook.ableToCastle ? 'K' : ''}`;
+		}).join(',');
+		const enPassant = this.getAvailableEnPassantTarget();
+		return JSON.stringify([this.turn, board, castlingRights, enPassant]);
+	}
+
+	recordPosition() {
+		if (!this.positionCounts) this.positionCounts = new Map();
+		const key = this.getPositionKey();
+		const count = (this.positionCounts.get(key) || 0) + 1;
+		this.positionCounts.set(key, count);
+		return count;
+	}
+
+	hasThreefoldRepetition() {
+		if (!this.positionCounts) return false;
+		return (this.positionCounts.get(this.getPositionKey()) || 0) >= 3;
 	}
 
 	hasInsufficientMaterial() {
@@ -478,6 +528,15 @@ class Game {
 
 	drawByFiftyMoveRule() {
 		const message = 'Draw by the fifty-move rule.';
+		const endScene = document.getElementById('endscene');
+		endScene.getElementsByClassName('winning-sign')[0].textContent = message;
+		this.gameStatus.textContent = message;
+		this.gameStatus.classList.remove('is-check');
+		endScene.classList.add('show');
+	}
+
+	drawByThreefoldRepetition() {
+		const message = 'Draw by threefold repetition.';
 		const endScene = document.getElementById('endscene');
 		endScene.getElementsByClassName('winning-sign')[0].textContent = message;
 		this.gameStatus.textContent = message;
