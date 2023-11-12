@@ -992,6 +992,98 @@ test('SAN disambiguation ignores a same-type piece pinned to its king', () => {
   assert.equal(game.getMoveDisambiguation(whiteRook, 24), '');
 });
 
+test('undo and redo restore ordinary-move board, turn, history, clock, and repetition state', () => {
+  const King = pieceClass('King');
+  const Knight = pieceClass('Knight');
+  const whiteKnight = new Knight(17, 'whiteKnight1');
+  const game = createGame([
+    new King(15, 'whiteKing'), new King(85, 'blackKing'), whiteKnight,
+  ], whiteKnight);
+  game.turn = 'white';
+  game.turnSign = { innerHTML: '' };
+  game.moveList = null;
+  game.emptyMoveHistory = { hidden: false };
+  game.moveHistory = [];
+  game.halfmoveClock = 0;
+  game.positionCounts = new Map([['before', 1]]);
+  game.undoStack = [];
+  game.redoStack = [];
+  game.updateCheckStatus = () => {};
+  game.getGameOutcome = () => 'ongoing';
+  game.clearSquares = () => {};
+
+  const before = game.captureMoveState();
+  whiteKnight.position = 36;
+  game.turn = 'black';
+  game.halfmoveClock = 1;
+  game.moveHistory = ['1. Nf3'];
+  game.positionCounts.set('after', 1);
+  game.pendingUndoEntry = { before, piece: whiteKnight, from: 17, to: 36, supported: true };
+  game.commitPendingUndoMove();
+
+  assert.equal(game.undoMove(), true);
+  assert.equal(whiteKnight.position, 17);
+  assert.equal(game.turn, 'white');
+  assert.equal(game.halfmoveClock, 0);
+  assert.equal(game.moveHistory.length, 0);
+  assert.equal(game.positionCounts.get('before'), 1);
+  assert.equal(game.positionCounts.has('after'), false);
+  assert.equal(game.emptyMoveHistory.hidden, false);
+
+  assert.equal(game.redoMove(), true);
+  assert.equal(whiteKnight.position, 36);
+  assert.equal(game.turn, 'black');
+  assert.equal(game.halfmoveClock, 1);
+  assert.equal(game.moveHistory.length, 1);
+  assert.equal(game.moveHistory[0], '1. Nf3');
+  assert.equal(game.positionCounts.get('after'), 1);
+});
+
+test('a new ordinary move clears redo history and unsupported moves block undo', () => {
+  const game = createGame([], null);
+  game.undoStack = [];
+  game.redoStack = [{ supported: true }];
+  game.pendingUndoEntry = {
+    before: { pieces: [], turn: 'white', halfmoveClock: 0, enPassantTarget: null, enPassantPawn: null, positionCounts: new Map(), moveHistory: [] },
+    supported: true,
+  };
+  game.captureMoveState = () => ({ pieces: [], turn: 'black', halfmoveClock: 1, enPassantTarget: null, enPassantPawn: null, positionCounts: new Map(), moveHistory: [] });
+  game.commitPendingUndoMove();
+  assert.equal(game.redoStack.length, 0);
+
+  game.undoStack.push({ supported: false });
+  assert.equal(game.undoMove(), false);
+  assert.equal(game.undoStack.length, 2);
+});
+
+test('undo restores king castling rights after an ordinary king move', () => {
+  const King = pieceClass('King');
+  const king = new King(15, 'whiteKing');
+  const game = createGame([king, new King(85, 'blackKing')], king);
+  game.turn = 'white';
+  game.turnSign = { innerHTML: '' };
+  game.moveList = null;
+  game.emptyMoveHistory = { hidden: true };
+  game.moveHistory = [];
+  game.positionCounts = new Map();
+  game.undoStack = [];
+  game.redoStack = [];
+  game.updateCheckStatus = () => {};
+  game.getGameOutcome = () => 'ongoing';
+  game.clearSquares = () => {};
+
+  const before = game.captureMoveState();
+  king.changePosition(16, true);
+  game.turn = 'black';
+  game.pendingUndoEntry = { before, piece: king, from: 15, to: 16, supported: true };
+  game.commitPendingUndoMove();
+
+  assert.equal(king.ableToCastle, false);
+  assert.equal(game.undoMove(), true);
+  assert.equal(king.position, 15);
+  assert.equal(king.ableToCastle, true);
+});
+
 test('move history displays moves in chronological order with full-move numbers', () => {
   const game = createGame([], null);
   const items = [];
