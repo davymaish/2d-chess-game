@@ -17,6 +17,9 @@ class Game {
 		this.emptyMoveHistory = document.getElementById('move-history-empty');
 		this.moveHistory = [];
 		this.pendingHistoryMove = null;
+		this.undoStack = [];
+		this.redoStack = [];
+		this.pendingUndoEntry = null;
 		this.halfmoveClock = 0;
 		this.pendingCapture = false;
 		this.isCastlingRookMove = false;
@@ -279,6 +282,16 @@ class Game {
 			const enPassantCapture = this.getEnPassantCapture(newPosition);
 			if (enPassantCapture) this.capturePiece(enPassantCapture);
 			const isCapture = Boolean(this.pendingCapture || enPassantCapture);
+			if (!this.isCastlingRookMove) {
+				const isCastling = clickedPiece.rank === 'king' && Math.abs(parseInt(newPosition) - originalPosition) === 2;
+				this.pendingUndoEntry = {
+					before: this.captureMoveState(),
+					piece: clickedPiece,
+					from: originalPosition,
+					to: parseInt(newPosition),
+					supported: !isCapture && !isCastling,
+				};
+			}
 			if (clickedPiece.hasRank('king') || clickedPiece.hasRank('pawn'))
 				clickedPiece.changePosition(newPosition, true);
 			else
@@ -313,6 +326,7 @@ class Game {
 			this.recordMoveHistory(this.pendingHistoryMove);
 			this.pendingHistoryMove = null;
 		}
+		if (!this.isCastlingRookMove) this.commitPendingUndoMove();
 		this.updateCheckStatus(outcome === 'check' || outcome === 'checkmate');
 		if (outcome === 'checkmate') this.checkmate(movingColor);
 		else if (outcome === 'stalemate') this.stalemate();
@@ -451,9 +465,100 @@ class Game {
 		this.pieces.push(promotedPiece);
 		this.pendingPromotion = null;
 		if (this.pendingHistoryMove) this.pendingHistoryMove.promotion = choice;
+		if (this.pendingUndoEntry) this.pendingUndoEntry.supported = false;
 		this.promotionDialog.close();
 		this.finishMove(pawn.color);
 		return promotedPiece;
+	}
+
+	captureMoveState() {
+		return {
+			pieces: this.pieces.map(piece => ({
+				piece,
+				position: parseInt(piece.position),
+				ableToCastle: piece.ableToCastle,
+			})),
+			turn: this.turn,
+			halfmoveClock: this.halfmoveClock || 0,
+			enPassantTarget: this.enPassantTarget ?? null,
+			enPassantPawn: this.enPassantPawn || null,
+			positionCounts: new Map(this.positionCounts || []),
+			moveHistory: [...(this.moveHistory || [])],
+		};
+	}
+
+	commitPendingUndoMove() {
+		if (!this.pendingUndoEntry) return;
+		if (!Array.isArray(this.undoStack)) this.undoStack = [];
+		if (!Array.isArray(this.redoStack)) this.redoStack = [];
+		this.pendingUndoEntry.after = this.captureMoveState();
+		this.undoStack.push(this.pendingUndoEntry);
+		this.redoStack.length = 0;
+		this.pendingUndoEntry = null;
+	}
+
+	undoMove() {
+		if (!Array.isArray(this.undoStack) || this.undoStack.length === 0) return false;
+		const entry = this.undoStack[this.undoStack.length - 1];
+		if (!entry.supported) return false;
+		this.undoStack.pop();
+		this.redoStack.push(entry);
+		this.restoreMoveState(entry.before);
+		return true;
+	}
+
+	redoMove() {
+		if (!Array.isArray(this.redoStack) || this.redoStack.length === 0) return false;
+		const entry = this.redoStack.pop();
+		this.undoStack.push(entry);
+		this.restoreMoveState(entry.after);
+		return true;
+	}
+
+	restoreMoveState(state) {
+		this.pieces = state.pieces.map(entry => entry.piece);
+		state.pieces.forEach(entry => {
+			entry.piece.position = entry.position;
+			if (entry.ableToCastle !== undefined) entry.piece.ableToCastle = entry.ableToCastle;
+			const square = document.getElementById(entry.position);
+			if (square && typeof square.append === 'function' && entry.piece.img) square.append(entry.piece.img);
+		});
+		this.turn = state.turn;
+		this.halfmoveClock = state.halfmoveClock;
+		this.enPassantTarget = state.enPassantTarget;
+		this.enPassantPawn = state.enPassantPawn;
+		this.positionCounts = new Map(state.positionCounts);
+		this.moveHistory = [...state.moveHistory];
+		if (this.turnSign) this.turnSign.innerHTML = this.turn === 'white' ? "White's Turn" : "Black's Turn";
+		this.renderMoveHistory();
+		if (typeof this.clearSquares === 'function') this.clearSquares();
+		this.refreshOutcomeDisplay();
+	}
+
+	renderMoveHistory() {
+		if (this.moveList) {
+			this.moveList.textContent = '';
+			this.moveHistory.forEach(notation => {
+				const item = document.createElement('div');
+				item.textContent = notation;
+				this.moveList.appendChild(item);
+			});
+			this.moveList.scrollTop = this.moveList.scrollHeight;
+		}
+		if (this.emptyMoveHistory) this.emptyMoveHistory.hidden = this.moveHistory.length > 0;
+	}
+
+	refreshOutcomeDisplay() {
+		if (typeof this.getGameOutcome !== 'function' || typeof this.updateCheckStatus !== 'function') return;
+		const outcome = this.getGameOutcome(this.turn);
+		this.updateCheckStatus(outcome === 'check' || outcome === 'checkmate');
+		const endScene = document.getElementById('endscene');
+		if (endScene && endScene.classList) endScene.classList.remove('show');
+		if (outcome === 'checkmate') this.checkmate(this.turn === 'white' ? 'black' : 'white');
+		else if (outcome === 'stalemate') this.stalemate();
+		else if (outcome === 'insufficient-material') this.drawByInsufficientMaterial();
+		else if (outcome === 'fifty-move-draw') this.drawByFiftyMoveRule();
+		else if (outcome === 'threefold-repetition') this.drawByThreefoldRepetition();
 	}
 
 	myKingChecked(pos, kill=true, capturedPiece=null){
