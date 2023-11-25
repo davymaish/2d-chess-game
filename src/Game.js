@@ -20,6 +20,7 @@ class Game {
 		this.undoStack = [];
 		this.redoStack = [];
 		this.pendingUndoEntry = null;
+		this.pendingCaptureState = null;
 		this.halfmoveClock = 0;
 		this.pendingCapture = false;
 		this.isCastlingRookMove = false;
@@ -278,20 +279,21 @@ class Game {
 
 			const newPosition = square.getAttribute('id');
 			const originalPosition = parseInt(clickedPiece.position);
-			const disambiguation = this.getMoveDisambiguation(clickedPiece, newPosition);
-			const enPassantCapture = this.getEnPassantCapture(newPosition);
-			if (enPassantCapture) this.capturePiece(enPassantCapture);
-			const isCapture = Boolean(this.pendingCapture || enPassantCapture);
-			if (!this.isCastlingRookMove) {
-				const isCastling = clickedPiece.rank === 'king' && Math.abs(parseInt(newPosition) - originalPosition) === 2;
-				this.pendingUndoEntry = {
-					before: this.captureMoveState(),
-					piece: clickedPiece,
-					from: originalPosition,
-					to: parseInt(newPosition),
-					supported: !isCapture && !isCastling,
-				};
-			}
+				const disambiguation = this.getMoveDisambiguation(clickedPiece, newPosition);
+				const enPassantCapture = this.getEnPassantCapture(newPosition);
+				if (enPassantCapture) this.capturePiece(enPassantCapture);
+				const isCapture = Boolean(this.pendingCapture || enPassantCapture);
+				if (!this.isCastlingRookMove) {
+					const isCastling = clickedPiece.rank === 'king' && Math.abs(parseInt(newPosition) - originalPosition) === 2;
+					this.pendingUndoEntry = {
+						before: this.pendingCaptureState || this.captureMoveState(),
+						piece: clickedPiece,
+						from: originalPosition,
+						to: parseInt(newPosition),
+						supported: !isCastling && !enPassantCapture,
+					};
+					this.pendingCaptureState = null;
+				}
 			if (clickedPiece.hasRank('king') || clickedPiece.hasRank('pawn'))
 				clickedPiece.changePosition(newPosition, true);
 			else
@@ -403,6 +405,7 @@ class Game {
 	}
 
 	capturePiece(piece) {
+		if (!this.isCastlingRookMove && !this.pendingCaptureState) this.pendingCaptureState = this.captureMoveState();
 		this.pendingCapture = true;
 		piece.img.parentNode.removeChild(piece.img);
 		piece.img.className = '';
@@ -477,6 +480,7 @@ class Game {
 				piece,
 				position: parseInt(piece.position),
 				ableToCastle: piece.ableToCastle,
+				imgClassName: piece.img && piece.img.className,
 			})),
 			turn: this.turn,
 			halfmoveClock: this.halfmoveClock || 0,
@@ -503,7 +507,7 @@ class Game {
 		if (!entry.supported) return false;
 		this.undoStack.pop();
 		this.redoStack.push(entry);
-		this.restoreMoveState(entry.before);
+		this.restoreMoveState(entry.before, entry);
 		return true;
 	}
 
@@ -511,17 +515,34 @@ class Game {
 		if (!Array.isArray(this.redoStack) || this.redoStack.length === 0) return false;
 		const entry = this.redoStack.pop();
 		this.undoStack.push(entry);
-		this.restoreMoveState(entry.after);
+		this.restoreMoveState(entry.after, entry);
 		return true;
 	}
 
-	restoreMoveState(state) {
+	restoreMoveState(state, entry = null) {
 		this.pieces = state.pieces.map(entry => entry.piece);
-		state.pieces.forEach(entry => {
-			entry.piece.position = entry.position;
-			if (entry.ableToCastle !== undefined) entry.piece.ableToCastle = entry.ableToCastle;
-			const square = document.getElementById(entry.position);
-			if (square && typeof square.append === 'function' && entry.piece.img) square.append(entry.piece.img);
+		const activePieces = new Map(state.pieces.map(pieceState => [pieceState.piece, pieceState]));
+		const knownPieces = new Set([
+			...this.pieces,
+			...(entry ? entry.before.pieces.map(pieceState => pieceState.piece) : []),
+			...(entry && entry.after ? entry.after.pieces.map(pieceState => pieceState.piece) : []),
+		]);
+		knownPieces.forEach(piece => {
+			const pieceState = activePieces.get(piece);
+			if (!pieceState) {
+				const cemetery = piece.color === 'white' ? this.whiteSematary : this.blackSematary;
+				const grave = cemetery && cemetery.querySelector('.' + piece.rank);
+				if (grave && piece.img) {
+					piece.img.className = '';
+					grave.append(piece.img);
+				}
+				return;
+			}
+			piece.position = pieceState.position;
+			if (pieceState.ableToCastle !== undefined) piece.ableToCastle = pieceState.ableToCastle;
+			if (piece.img && pieceState.imgClassName !== undefined) piece.img.className = pieceState.imgClassName;
+			const square = document.getElementById(pieceState.position);
+			if (square && typeof square.append === 'function' && piece.img) square.append(piece.img);
 		});
 		this.turn = state.turn;
 		this.halfmoveClock = state.halfmoveClock;
