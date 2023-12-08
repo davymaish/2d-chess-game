@@ -1160,6 +1160,200 @@ test('undo and redo restore a captured piece identity, board square, and graveya
   }
 });
 
+test('undo and redo restore castling king-rook positions and rights', () => {
+  const King = pieceClass('King');
+  const Rook = pieceClass('Rook');
+  const whiteKing = new King(15, 'whiteKing');
+  const whiteRook = new Rook(18, 'whiteRook2');
+  const game = createGame([whiteKing, whiteRook, new King(85, 'blackKing')], whiteKing);
+  const squares = new Map();
+  for (const position of [15, 16, 17, 18, 85]) {
+    const allowed = new Set(position === 17 ? ['allowed'] : []);
+    squares.set(position, {
+      id: String(position),
+      classList: { contains: name => allowed.has(name), add: name => allowed.add(name) },
+      getAttribute: name => name === 'id' ? String(position) : null,
+      append(image) { image.parentNode = this; },
+    });
+  }
+  const originalGetElementById = context.document.getElementById;
+  const originalGame = context.game;
+  context.document.getElementById = id => squares.get(Number(id)) || { id };
+  context.game = game;
+  game.turn = 'white';
+  game.turnSign = { innerHTML: '' };
+  game.moveList = null;
+  game.emptyMoveHistory = { hidden: false };
+  game.moveHistory = [];
+  game.halfmoveClock = 0;
+  game.positionCounts = new Map();
+  game.undoStack = [];
+  game.redoStack = [];
+  game.getMoveDisambiguation = () => '';
+  game.recordPosition = () => {};
+  game.getGameOutcome = () => 'ongoing';
+  game.updateCheckStatus = () => {};
+  game.clearSquares = () => {};
+
+  try {
+    game.movePiece(null, squares.get(17));
+    assert.equal(whiteKing.position, 17);
+    assert.equal(whiteRook.position, 16);
+    assert.equal(whiteKing.ableToCastle, false);
+    assert.equal(whiteRook.ableToCastle, false);
+    assert.equal(game.undoMove(), true);
+    assert.equal(whiteKing.position, 15);
+    assert.equal(whiteRook.position, 18);
+    assert.equal(whiteKing.ableToCastle, true);
+    assert.equal(whiteRook.ableToCastle, true);
+    assert.equal(game.redoMove(), true);
+    assert.equal(whiteKing.position, 17);
+    assert.equal(whiteRook.position, 16);
+    assert.equal(whiteKing.ableToCastle, false);
+    assert.equal(whiteRook.ableToCastle, false);
+  }
+  finally {
+    context.document.getElementById = originalGetElementById;
+    if (originalGame === undefined) delete context.game;
+    else context.game = originalGame;
+  }
+});
+
+test('undo and redo restore en-passant victim, target, and pawn positions', () => {
+  const King = pieceClass('King');
+  const Pawn = pieceClass('Pawn');
+  const whitePawn = new Pawn(55, 'whitePawn5');
+  const blackPawn = new Pawn(56, 'blackPawn6');
+  const game = createGame([new King(15, 'whiteKing'), whitePawn, blackPawn, new King(88, 'blackKing')], whitePawn);
+  const makeSlot = () => ({ append(image) { image.parentNode = this; } });
+  const capturedSlot = makeSlot();
+  const squares = new Map();
+  for (const position of [15, 55, 56, 66, 88]) {
+    squares.set(position, {
+      id: String(position),
+      classList: { contains: name => name === 'allowed' },
+      getAttribute: name => name === 'id' ? String(position) : null,
+      append(image) { image.parentNode = this; },
+    });
+  }
+  const originalGetElementById = context.document.getElementById;
+  const originalGetElementsByClassName = context.document.getElementsByClassName;
+  context.document.getElementById = id => squares.get(Number(id)) || { id };
+  context.document.getElementsByClassName = () => [];
+  whitePawn.img.parentNode = squares.get(55);
+  whitePawn.img.className = 'piece pawn';
+  blackPawn.img.parentNode = { removeChild(image) { image.parentNode = null; } };
+  blackPawn.img.className = 'piece pawn';
+  game.turn = 'white';
+  game.turnSign = { innerHTML: '' };
+  game.moveList = null;
+  game.emptyMoveHistory = { hidden: false };
+  game.moveHistory = [];
+  game.halfmoveClock = 4;
+  game.positionCounts = new Map([['before-en-passant', 1]]);
+  game.undoStack = [];
+  game.redoStack = [];
+  game.whiteSematary = { querySelector: () => makeSlot() };
+  game.blackSematary = { querySelector: () => capturedSlot };
+  game.recordPosition = () => {};
+  game.getGameOutcome = () => 'ongoing';
+  game.updateCheckStatus = () => {};
+  game.clearSquares = () => {};
+  game.getMoveDisambiguation = () => '';
+  game.recordEnPassantOpportunity(blackPawn, 76, 56);
+
+  try {
+    game.movePiece(null, squares.get(66));
+    assert.equal(game.undoStack.at(-1).supported, true);
+    assert.equal(game.pieces.includes(blackPawn), false);
+    assert.equal(whitePawn.position, 66);
+    assert.equal(game.enPassantTarget, null);
+    assert.equal(game.undoMove(), true);
+    assert.equal(game.pieces.includes(blackPawn), true);
+    assert.equal(whitePawn.position, 55);
+    assert.equal(blackPawn.position, 56);
+    assert.equal(game.enPassantTarget, 66);
+    assert.equal(game.enPassantPawn, blackPawn);
+    assert.equal(blackPawn.img.parentNode, squares.get(56));
+    assert.equal(game.redoMove(), true);
+    assert.equal(game.pieces.includes(blackPawn), false);
+    assert.equal(whitePawn.position, 66);
+    assert.equal(game.enPassantTarget, null);
+    assert.equal(blackPawn.img.parentNode, capturedSlot);
+  }
+  finally {
+    context.document.getElementById = originalGetElementById;
+    context.document.getElementsByClassName = originalGetElementsByClassName;
+  }
+});
+
+test('undo and redo restore promotion piece identity and shared image attributes', () => {
+  const King = pieceClass('King');
+  const Pawn = pieceClass('Pawn');
+  const pawn = new Pawn(78, 'whitePawn8');
+  pawn.img.src = './assets/img/whitePawn.png';
+  pawn.img.className = 'piece pawn';
+  const game = createGame([new King(15, 'whiteKing'), pawn, new King(85, 'blackKing')], pawn);
+  const squares = new Map();
+  for (const position of [15, 78, 88, 85]) {
+    squares.set(position, {
+      id: String(position),
+      classList: { contains: name => name === 'allowed' },
+      getAttribute: name => name === 'id' ? String(position) : null,
+      append(image) { image.parentNode = this; },
+    });
+  }
+  const originalGetElementById = context.document.getElementById;
+  const originalGame = context.game;
+  context.document.getElementById = id => squares.get(Number(id)) || { id };
+  context.game = game;
+  game.turn = 'white';
+  game.turnSign = { innerHTML: '' };
+  game.moveList = null;
+  game.emptyMoveHistory = { hidden: false };
+  game.moveHistory = [];
+  game.halfmoveClock = 0;
+  game.positionCounts = new Map();
+  game.undoStack = [];
+  game.redoStack = [];
+  game.promotionCounter = 0;
+  game.promotionDialog = { showModal() {}, close() {}, querySelector() { return { focus() {} }; } };
+  game.getMoveDisambiguation = () => '';
+  game.recordPosition = () => {};
+  game.getGameOutcome = () => 'ongoing';
+  game.updateCheckStatus = () => {};
+  game.clearSquares = () => {};
+
+  try {
+    game.movePiece(null, squares.get(88));
+    assert.equal(game.pendingPromotion, pawn);
+    const promotedPiece = game.promote(pawn, 'queen');
+    const promotedId = promotedPiece.name;
+    const promotedSrc = pawn.img.src;
+    assert.equal(game.pieces.includes(promotedPiece), true);
+    assert.equal(pawn.img.id, promotedId);
+    assert.equal(game.undoMove(), true);
+    assert.equal(game.pieces.includes(pawn), true);
+    assert.equal(game.pieces.includes(promotedPiece), false);
+    assert.equal(pawn.position, 78);
+    assert.equal(pawn.img.id, 'whitePawn8');
+    assert.equal(pawn.img.src, './assets/img/whitePawn.png');
+    assert.equal(pawn.img.className, 'piece pawn');
+    assert.equal(game.redoMove(), true);
+    assert.equal(game.pieces.includes(promotedPiece), true);
+    assert.equal(game.pieces.includes(pawn), false);
+    assert.equal(promotedPiece.position, 88);
+    assert.equal(pawn.img.id, promotedId);
+    assert.equal(pawn.img.src, promotedSrc);
+    assert.equal(pawn.img.className, 'piece queen');
+  }
+  finally {
+    context.document.getElementById = originalGetElementById;
+    if (originalGame === undefined) delete context.game;
+    else context.game = originalGame;
+  }
+});
+
 test('move history displays moves in chronological order with full-move numbers', () => {
   const game = createGame([], null);
   const items = [];
