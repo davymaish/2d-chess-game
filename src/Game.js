@@ -284,13 +284,12 @@ class Game {
 				if (enPassantCapture) this.capturePiece(enPassantCapture);
 				const isCapture = Boolean(this.pendingCapture || enPassantCapture);
 				if (!this.isCastlingRookMove) {
-					const isCastling = clickedPiece.rank === 'king' && Math.abs(parseInt(newPosition) - originalPosition) === 2;
 					this.pendingUndoEntry = {
 						before: this.pendingCaptureState || this.captureMoveState(),
 						piece: clickedPiece,
 						from: originalPosition,
 						to: parseInt(newPosition),
-						supported: !isCastling && !enPassantCapture,
+						supported: true,
 					};
 					this.pendingCaptureState = null;
 				}
@@ -465,11 +464,10 @@ class Game {
 		this.pieces.splice(this.pieces.indexOf(pawn), 1);
 		const promotedPiece = new PromotedPiece(pawn.position, promotedName);
 		promotedPiece.img = image;
-		this.pieces.push(promotedPiece);
-		this.pendingPromotion = null;
-		if (this.pendingHistoryMove) this.pendingHistoryMove.promotion = choice;
-		if (this.pendingUndoEntry) this.pendingUndoEntry.supported = false;
-		this.promotionDialog.close();
+				this.pieces.push(promotedPiece);
+				this.pendingPromotion = null;
+				if (this.pendingHistoryMove) this.pendingHistoryMove.promotion = choice;
+				this.promotionDialog.close();
 		this.finishMove(pawn.color);
 		return promotedPiece;
 	}
@@ -481,6 +479,8 @@ class Game {
 				position: parseInt(piece.position),
 				ableToCastle: piece.ableToCastle,
 				imgClassName: piece.img && piece.img.className,
+				imgId: piece.img && piece.img.id,
+				imgSrc: piece.img && piece.img.src,
 			})),
 			turn: this.turn,
 			halfmoveClock: this.halfmoveClock || 0,
@@ -519,18 +519,20 @@ class Game {
 		return true;
 	}
 
-	restoreMoveState(state, entry = null) {
-		this.pieces = state.pieces.map(entry => entry.piece);
-		const activePieces = new Map(state.pieces.map(pieceState => [pieceState.piece, pieceState]));
-		const knownPieces = new Set([
+		restoreMoveState(state, entry = null) {
+			this.pieces = state.pieces.map(entry => entry.piece);
+			const activePieces = new Map(state.pieces.map(pieceState => [pieceState.piece, pieceState]));
+			const activeImages = new Set(this.pieces.map(piece => piece.img).filter(Boolean));
+			const knownPieces = new Set([
 			...this.pieces,
 			...(entry ? entry.before.pieces.map(pieceState => pieceState.piece) : []),
 			...(entry && entry.after ? entry.after.pieces.map(pieceState => pieceState.piece) : []),
 		]);
-		knownPieces.forEach(piece => {
-			const pieceState = activePieces.get(piece);
-			if (!pieceState) {
-				const cemetery = piece.color === 'white' ? this.whiteSematary : this.blackSematary;
+			knownPieces.forEach(piece => {
+				const pieceState = activePieces.get(piece);
+				if (!pieceState) {
+					if (piece.img && activeImages.has(piece.img)) return;
+					const cemetery = piece.color === 'white' ? this.whiteSematary : this.blackSematary;
 				const grave = cemetery && cemetery.querySelector('.' + piece.rank);
 				if (grave && piece.img) {
 					piece.img.className = '';
@@ -538,9 +540,11 @@ class Game {
 				}
 				return;
 			}
-			piece.position = pieceState.position;
-			if (pieceState.ableToCastle !== undefined) piece.ableToCastle = pieceState.ableToCastle;
-			if (piece.img && pieceState.imgClassName !== undefined) piece.img.className = pieceState.imgClassName;
+				piece.position = pieceState.position;
+				if (pieceState.ableToCastle !== undefined) piece.ableToCastle = pieceState.ableToCastle;
+				if (piece.img && pieceState.imgClassName !== undefined) piece.img.className = pieceState.imgClassName;
+				if (piece.img && pieceState.imgId !== undefined) piece.img.id = pieceState.imgId;
+				if (piece.img && pieceState.imgSrc !== undefined) piece.img.src = pieceState.imgSrc;
 			const square = document.getElementById(pieceState.position);
 			if (square && typeof square.append === 'function' && piece.img) square.append(piece.img);
 		});
