@@ -31,6 +31,7 @@ class Game {
 		this.clickedPiece = null;
 		this.allowedMoves = null;
 		this.addEventListeners();
+		this.addHistoryControls();
 		this.whiteSematary = document.getElementById('whiteSematary');
 		this.blackSematary = document.getElementById('blackSematary');
 		this.updateCheckStatus();
@@ -499,6 +500,7 @@ class Game {
 		this.undoStack.push(this.pendingUndoEntry);
 		this.redoStack.length = 0;
 		this.pendingUndoEntry = null;
+		this.updateHistoryControls();
 	}
 
 	undoMove() {
@@ -519,20 +521,20 @@ class Game {
 		return true;
 	}
 
-		restoreMoveState(state, entry = null) {
-			this.pieces = state.pieces.map(entry => entry.piece);
-			const activePieces = new Map(state.pieces.map(pieceState => [pieceState.piece, pieceState]));
-			const activeImages = new Set(this.pieces.map(piece => piece.img).filter(Boolean));
-			const knownPieces = new Set([
+	restoreMoveState(state, entry = null) {
+		this.pieces = state.pieces.map(pieceState => pieceState.piece);
+		const activePieces = new Map(state.pieces.map(pieceState => [pieceState.piece, pieceState]));
+		const activeImages = new Set(this.pieces.map(piece => piece.img).filter(Boolean));
+		const knownPieces = new Set([
 			...this.pieces,
 			...(entry ? entry.before.pieces.map(pieceState => pieceState.piece) : []),
 			...(entry && entry.after ? entry.after.pieces.map(pieceState => pieceState.piece) : []),
 		]);
-			knownPieces.forEach(piece => {
-				const pieceState = activePieces.get(piece);
-				if (!pieceState) {
-					if (piece.img && activeImages.has(piece.img)) return;
-					const cemetery = piece.color === 'white' ? this.whiteSematary : this.blackSematary;
+		knownPieces.forEach(piece => {
+			const pieceState = activePieces.get(piece);
+			if (!pieceState) {
+				if (piece.img && activeImages.has(piece.img)) return;
+				const cemetery = piece.color === 'white' ? this.whiteSematary : this.blackSematary;
 				const grave = cemetery && cemetery.querySelector('.' + piece.rank);
 				if (grave && piece.img) {
 					piece.img.className = '';
@@ -540,11 +542,11 @@ class Game {
 				}
 				return;
 			}
-				piece.position = pieceState.position;
-				if (pieceState.ableToCastle !== undefined) piece.ableToCastle = pieceState.ableToCastle;
-				if (piece.img && pieceState.imgClassName !== undefined) piece.img.className = pieceState.imgClassName;
-				if (piece.img && pieceState.imgId !== undefined) piece.img.id = pieceState.imgId;
-				if (piece.img && pieceState.imgSrc !== undefined) piece.img.src = pieceState.imgSrc;
+			piece.position = pieceState.position;
+			if (pieceState.ableToCastle !== undefined) piece.ableToCastle = pieceState.ableToCastle;
+			if (piece.img && pieceState.imgClassName !== undefined) piece.img.className = pieceState.imgClassName;
+			if (piece.img && pieceState.imgId !== undefined) piece.img.id = pieceState.imgId;
+			if (piece.img && pieceState.imgSrc !== undefined) piece.img.src = pieceState.imgSrc;
 			const square = document.getElementById(pieceState.position);
 			if (square && typeof square.append === 'function' && piece.img) square.append(piece.img);
 		});
@@ -556,6 +558,7 @@ class Game {
 		this.moveHistory = [...state.moveHistory];
 		if (this.turnSign) this.turnSign.innerHTML = this.turn === 'white' ? "White's Turn" : "Black's Turn";
 		this.renderMoveHistory();
+		this.updateHistoryControls();
 		if (typeof this.clearSquares === 'function') this.clearSquares();
 		this.refreshOutcomeDisplay();
 	}
@@ -584,6 +587,32 @@ class Game {
 		else if (outcome === 'insufficient-material') this.drawByInsufficientMaterial();
 		else if (outcome === 'fifty-move-draw') this.drawByFiftyMoveRule();
 		else if (outcome === 'threefold-repetition') this.drawByThreefoldRepetition();
+	}
+
+	addHistoryControls() {
+		this.undoButton = document.getElementById('undo-move');
+		this.redoButton = document.getElementById('redo-move');
+		if (this.undoButton) this.undoButton.addEventListener('click', () => this.undoMove());
+		if (this.redoButton) this.redoButton.addEventListener('click', () => this.redoMove());
+		if (document.addEventListener) document.addEventListener('keydown', event => {
+			if (this.pendingPromotion || (!event.ctrlKey && !event.metaKey) || event.altKey) return;
+			const key = event.key.toLowerCase();
+			if (key === 'z') {
+				event.preventDefault();
+				if (event.shiftKey) this.redoMove();
+				else this.undoMove();
+			}
+			else if (key === 'y' && !event.shiftKey) {
+				event.preventDefault();
+				this.redoMove();
+			}
+		});
+		this.updateHistoryControls();
+	}
+
+	updateHistoryControls() {
+		if (this.undoButton) this.undoButton.disabled = !this.undoStack || this.undoStack.length === 0;
+		if (this.redoButton) this.redoButton.disabled = !this.redoStack || this.redoStack.length === 0;
 	}
 
 	myKingChecked(pos, kill=true, capturedPiece=null){
