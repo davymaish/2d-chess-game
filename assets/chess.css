@@ -240,6 +240,33 @@ img{
 	font-size: 1.15rem;
 }
 
+.history-controls {
+	display: flex;
+	gap: 0.5rem;
+	margin-bottom: 0.6rem;
+}
+
+.history-controls button {
+	padding: 0.4rem 0.75rem;
+	border: 1px solid #52666d;
+	border-radius: 0.3rem;
+	background: #263238;
+	color: #fff;
+	font: inherit;
+	cursor: pointer;
+}
+
+.history-controls button:focus-visible {
+	outline: 3px solid #00897b;
+	outline-offset: 2px;
+}
+
+.history-controls button:disabled {
+	background: #d5dadd;
+	color: #58666b;
+	cursor: not-allowed;
+}
+
 .move-history .move-list {
 	max-height: 12rem;
 	margin: 0;
