@@ -1041,8 +1041,11 @@ test('undo and redo restore ordinary-move board, turn, history, clock, and repet
 
 test('a new ordinary move clears redo history and unsupported moves block undo', () => {
   const game = createGame([], null);
-  game.undoStack = [];
-  game.redoStack = [{ supported: true }];
+  game.undoStack = [{ supported: true, before: {}, after: {} }];
+  game.redoStack = [];
+  game.restoreMoveState = () => {};
+  assert.equal(game.undoMove(), true);
+  assert.equal(game.redoStack.length, 1);
   game.pendingUndoEntry = {
     before: { pieces: [], turn: 'white', halfmoveClock: 0, enPassantTarget: null, enPassantPawn: null, positionCounts: new Map(), moveHistory: [] },
     supported: true,
@@ -1054,6 +1057,59 @@ test('a new ordinary move clears redo history and unsupported moves block undo',
   game.undoStack.push({ supported: false });
   assert.equal(game.undoMove(), false);
   assert.equal(game.undoStack.length, 2);
+});
+
+test('history buttons and keyboard shortcuts drive undo and redo with accurate disabled states', () => {
+  const game = createGame([], null);
+  const listeners = { undo: {}, redo: {} };
+  const undoButton = {
+    disabled: false,
+    addEventListener(type, callback) { listeners.undo[type] = callback; },
+  };
+  const redoButton = {
+    disabled: false,
+    addEventListener(type, callback) { listeners.redo[type] = callback; },
+  };
+  let keydown;
+  const originalGetElementById = context.document.getElementById;
+  const originalAddEventListener = context.document.addEventListener;
+  context.document.getElementById = id => ({ 'undo-move': undoButton, 'redo-move': redoButton }[id] || { id });
+  context.document.addEventListener = (type, callback) => { if (type === 'keydown') keydown = callback; };
+  const entry = { supported: true, before: {}, after: {} };
+  game.undoStack = [entry];
+  game.redoStack = [];
+  game.restoreMoveState = () => game.updateHistoryControls();
+
+  try {
+    game.addHistoryControls();
+    assert.equal(undoButton.disabled, false);
+    assert.equal(redoButton.disabled, true);
+    listeners.undo.click();
+    assert.equal(game.undoStack.length, 0);
+    assert.equal(game.redoStack.length, 1);
+    assert.equal(undoButton.disabled, true);
+    assert.equal(redoButton.disabled, false);
+    listeners.redo.click();
+    assert.equal(game.undoStack.length, 1);
+    assert.equal(game.redoStack.length, 0);
+
+    let prevented = 0;
+    keydown({ key: 'z', ctrlKey: true, metaKey: false, altKey: false, shiftKey: false, preventDefault() { prevented += 1; } });
+    assert.equal(game.undoStack.length, 0, 'Ctrl+Z undoes');
+    keydown({ key: 'z', ctrlKey: true, metaKey: false, altKey: false, shiftKey: true, preventDefault() { prevented += 1; } });
+    assert.equal(game.undoStack.length, 1, 'Ctrl+Shift+Z redoes');
+    keydown({ key: 'z', ctrlKey: true, metaKey: false, altKey: false, shiftKey: false, preventDefault() { prevented += 1; } });
+    keydown({ key: 'y', ctrlKey: false, metaKey: true, altKey: false, shiftKey: false, preventDefault() { prevented += 1; } });
+    assert.equal(game.undoStack.length, 1, 'Command+Y redoes on macOS');
+    assert.equal(prevented, 4);
+    assert.equal(undoButton.disabled, false);
+    assert.equal(redoButton.disabled, true);
+  }
+  finally {
+    context.document.getElementById = originalGetElementById;
+    if (originalAddEventListener === undefined) delete context.document.addEventListener;
+    else context.document.addEventListener = originalAddEventListener;
+  }
 });
 
 test('undo restores king castling rights after an ordinary king move', () => {
