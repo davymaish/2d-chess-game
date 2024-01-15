@@ -10,6 +10,7 @@
 		<p class="winning-sign" role="alert" aria-live="assertive" aria-atomic="true">white wins</p>
 		<div class="overlay">
 		</div>
+		<button id="restart-game" class="restart-game" type="button">Start New Game</button>
 	</div>
 	<dialog id="promotion-dialog" aria-labelledby="promotion-title">
 		<h2 id="promotion-title">Choose a piece to promote to</h2>
@@ -191,6 +192,7 @@
 		<div style="margin-top: 50px;">
 			<button class="flip-board" onclick="boardAnimate()">Flip Board</button>
 			<button id="new-game" class="new-game" type="button">New Game</button>
+			<button id="resign-game" class="resign-game" type="button">Resign</button>
 			<p id="turn" class="turn-text"> White's Turn</p>
 			<p id="game-status" class="game-status" role="status" aria-live="polite" aria-atomic="true">White to move.</p>
 		</div>
