@@ -222,9 +222,11 @@ test('checkmate announces the result as an accessible alert', () => {
 
   try {
     const game = createGame([], null);
+    game.gameStatus = { textContent: '', classList: makeClassList() };
     game.checkmate('white');
 
     assert.equal(message.textContent, 'Checkmate. White wins.');
+    assert.equal(game.gameStatus.textContent, 'Checkmate. White wins.');
     assert.equal(endScene.classList.contains('show'), true);
   }
   finally {
@@ -1556,4 +1558,117 @@ test('new-game control invokes the reset flow when activated', () => {
     context.document.getElementById = originalGetElementById;
   }
   assert.equal(starts, 1);
+});
+
+test('canceling resignation leaves the game and current side unchanged', () => {
+  const game = createGame([], null);
+  game.turn = 'white';
+  game.gameOver = false;
+  const originalWindow = context.window;
+  let prompts = 0;
+  context.window = { confirm: () => { prompts += 1; return false; } };
+  try {
+    assert.equal(game.requestResignation(), false);
+  }
+  finally {
+    if (originalWindow === undefined) delete context.window;
+    else context.window = originalWindow;
+  }
+  assert.equal(prompts, 1);
+  assert.equal(game.gameOver, false);
+  assert.equal(game.turn, 'white');
+});
+
+test('confirming resignation announces the winner and ends the game', () => {
+  const game = createGame([], null);
+  game.turn = 'black';
+  game.gameOver = false;
+  const classes = () => {
+    const values = new Set();
+    return { add: value => values.add(value), remove: value => values.delete(value), contains: value => values.has(value) };
+  };
+  const result = { textContent: '' };
+  const endScene = { classList: classes(), getElementsByClassName: () => [result] };
+  const statusClasses = classes();
+  statusClasses.add('is-check');
+  game.gameStatus = { textContent: '', classList: statusClasses };
+  game.resignButton = { disabled: false };
+  const originalWindow = context.window;
+  const originalGetElementById = context.document.getElementById;
+  context.window = { confirm: () => true };
+  context.document.getElementById = id => id === 'endscene' ? endScene : null;
+  try {
+    assert.equal(game.requestResignation(), true);
+  }
+  finally {
+    if (originalWindow === undefined) delete context.window;
+    else context.window = originalWindow;
+    context.document.getElementById = originalGetElementById;
+  }
+  assert.equal(result.textContent, 'Black resigns. White wins.');
+  assert.equal(game.gameStatus.textContent, result.textContent);
+  assert.equal(statusClasses.contains('is-check'), false);
+  assert.equal(endScene.classList.contains('show'), true);
+  assert.equal(game.gameOver, true);
+  assert.equal(game.resignButton.disabled, true);
+});
+
+test('finished games reject moves and undo/redo actions', () => {
+  const game = createGame([], null);
+  game.gameOver = true;
+  game.undoStack = [{}];
+  game.redoStack = [{}];
+  let prevented = false;
+  assert.equal(game.movePiece({ preventDefault: () => { prevented = true; } }), false);
+  assert.equal(prevented, true);
+  assert.equal(game.getPieceAllowedMoves({}, 'whiteKing'), 0);
+  assert.equal(game.undoMove(), false);
+  assert.equal(game.redoMove(), false);
+});
+
+test('restart after a result does not ask to discard an already-finished game', () => {
+  const game = createGame([], null);
+  game.gameOver = true;
+  game.moveHistory = ['1. e4'];
+  const originalWindow = context.window;
+  let prompts = 0;
+  let reloads = 0;
+  context.window = {
+    confirm: () => { prompts += 1; return false; },
+    location: { reload: () => { reloads += 1; } },
+  };
+  try {
+    assert.equal(game.startNewGame(), true);
+  }
+  finally {
+    if (originalWindow === undefined) delete context.window;
+    else context.window = originalWindow;
+  }
+  assert.equal(prompts, 0);
+  assert.equal(reloads, 1);
+});
+
+test('resign and result-screen restart controls invoke their respective flows', () => {
+  const game = createGame([], null);
+  const listeners = {};
+  const originalGetElementById = context.document.getElementById;
+  context.document.getElementById = id => ['new-game', 'resign-game', 'restart-game'].includes(id)
+    ? { addEventListener: (type, callback) => { listeners[id] = { type, callback }; } }
+    : null;
+  let resignations = 0;
+  let restarts = 0;
+  game.requestResignation = () => { resignations += 1; };
+  game.startNewGame = () => { restarts += 1; };
+  try {
+    game.addGameControls();
+    assert.equal(listeners['resign-game'].type, 'click');
+    listeners['resign-game'].callback();
+    assert.equal(listeners['restart-game'].type, 'click');
+    listeners['restart-game'].callback();
+  }
+  finally {
+    context.document.getElementById = originalGetElementById;
+  }
+  assert.equal(resignations, 1);
+  assert.equal(restarts, 1);
 });
