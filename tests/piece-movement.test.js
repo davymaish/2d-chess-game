@@ -1672,3 +1672,55 @@ test('resign and result-screen restart controls invoke their respective flows', 
   assert.equal(resignations, 1);
   assert.equal(restarts, 1);
 });
+
+test('piece selection visually distinguishes the selected square and announces legal destinations', () => {
+  const piece = { name: 'whiteKnight1', color: 'white', rank: 'knight', position: 25 };
+  const game = createGame([piece], null);
+  const classes = () => {
+    const values = new Set();
+    return { add: value => values.add(value), remove: value => values.delete(value), contains: value => values.has(value) };
+  };
+  const selectedSquare = { classList: classes() };
+  const destinationSquares = new Map([[33, { classList: classes() }], [44, { classList: classes() }]]);
+  const originalGetElementById = context.document.getElementById;
+  const originalBody = context.document.body;
+  context.document.getElementById = id => Number(id) === 25 ? selectedSquare : destinationSquares.get(Number(id));
+  context.document.body = { contains: node => Boolean(node) };
+  game.selectionStatus = { textContent: '' };
+  game.getPieceAllowedMoves = () => [33, 44];
+  try {
+    game.pieceMove({ target: { getAttribute: () => 'whiteKnight1' } });
+  }
+  finally {
+    context.document.getElementById = originalGetElementById;
+    if (originalBody === undefined) delete context.document.body;
+    else context.document.body = originalBody;
+  }
+  assert.equal(selectedSquare.classList.contains('selected-square'), true);
+  assert.equal(selectedSquare.classList.contains('allowed'), false);
+  assert.equal(destinationSquares.get(33).classList.contains('allowed'), true);
+  assert.equal(destinationSquares.get(44).classList.contains('selected-square'), false);
+  assert.equal(game.selectionStatus.textContent, 'white knight selected on e2. Legal destinations (2): c3, d4.');
+});
+
+test('clearing board highlights removes both selection and destination states and clears the announcement', () => {
+  const game = createGame([], null);
+  const classList = () => {
+    const values = new Set();
+    return { add: value => values.add(value), remove: value => values.delete(value), contains: value => values.has(value) };
+  };
+  const selected = { classList: classList() };
+  const destination = { classList: classList() };
+  selected.classList.add('selected-square');
+  destination.classList.add('allowed');
+  game.board = {
+    querySelectorAll: selector => selector === '.allowed' ? [destination] : selector === '.selected-square' ? [selected] : [],
+  };
+  game.selectionStatus = { textContent: 'white knight selected on e2.' };
+  game.allowedMoves = [33];
+  game.clearSquares();
+  assert.equal(selected.classList.contains('selected-square'), false);
+  assert.equal(destination.classList.contains('allowed'), false);
+  assert.equal(game.selectionStatus.textContent, '');
+  assert.equal(game.allowedMoves, null);
+});
