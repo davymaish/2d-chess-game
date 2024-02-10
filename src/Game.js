@@ -79,7 +79,9 @@ class Game {
 
 			allowedMoves.forEach( allowedMove => {
 				if (document.body.contains(document.getElementById(allowedMove))) {
-					document.getElementById(allowedMove).classList.add('allowed');		
+					const destination = document.getElementById(allowedMove);
+					destination.classList.add('allowed');
+					destination.classList.add(`allowed-${this.getMoveKind(piece, allowedMove)}`);
 				}	
 			});
 			this.announceSelection(piece, allowedMoves);
@@ -94,9 +96,29 @@ class Game {
 		return `${String.fromCharCode(96 + square % 10)}${Math.floor(square / 10)}`;
 	}
 
+	getMoveKind(piece, position) {
+		const target = parseInt(position);
+		if (piece.rank === 'king' && Math.abs(target - parseInt(piece.position)) === 2) return 'castling';
+		if (this.getEnPassantCapture(target)) return 'en-passant';
+		if (this.getPieceByPos(target)) return 'capture';
+		return 'quiet';
+	}
+
+	getMoveKindLabel(kind) {
+		return {
+			quiet: 'quiet move',
+			capture: 'capture',
+			'en-passant': 'en passant capture',
+			castling: 'castling',
+		}[kind] || 'legal move';
+	}
+
 	announceSelection(piece, allowedMoves) {
 		if (!this.selectionStatus) return;
-		const destinations = allowedMoves.map(position => this.getSquareName(position));
+		const destinations = allowedMoves.map(position => {
+			const kind = this.getMoveKind(piece, position);
+			return `${this.getSquareName(position)} (${this.getMoveKindLabel(kind)})`;
+		});
 		const destinationMessage = destinations.length
 			? `Legal destinations (${destinations.length}): ${destinations.join(', ')}.`
 			: 'No legal destinations.';
@@ -810,7 +832,11 @@ class Game {
 	clearSquares(){
 		this.allowedMoves = null;
 		const allowedSquares = this.board.querySelectorAll('.allowed');
-		allowedSquares.forEach( allowedSquare => allowedSquare.classList.remove('allowed') );
+		allowedSquares.forEach(allowedSquare => {
+			allowedSquare.classList.remove('allowed');
+			['allowed-quiet', 'allowed-capture', 'allowed-en-passant', 'allowed-castling']
+				.forEach(kind => allowedSquare.classList.remove(kind));
+		});
 		const selectedSquares = this.board.querySelectorAll('.selected-square');
 		selectedSquares.forEach(selectedSquare => selectedSquare.classList.remove('selected-square'));
 		if (this.selectionStatus) this.selectionStatus.textContent = '';
