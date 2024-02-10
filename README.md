@@ -9,6 +9,7 @@ _The game in action._
 
 - Responsive design, compatible with different screen sizes
 - Distinguishes the selected piece from its legal destinations and announces the destination squares to screen readers
+- Uses separate markers and spoken labels for quiet moves, captures, en passant, and castling
 - Moves validations
 - Animated display of checkmate and winner
 - Undo and redo controls with Ctrl/Cmd+Z, Ctrl/Cmd+Y, and Ctrl/Cmd+Shift+Z shortcuts
@@ -23,7 +24,7 @@ _The game in action._
 ## How to Play
 
 1. Open the game in your web browser.
-2. Click a piece to see the selected square and legal destinations highlighted differently; screen readers announce the legal squares.
+2. Click a piece to see the selected square and legal destinations highlighted differently; capture and special-move targets use their own markers, and screen readers announce each square and move type.
 3. Select a square and the piece will move to that square
 4. Use the Undo and Redo buttons, or Ctrl/Cmd+Z and Ctrl/Cmd+Y (Ctrl/Cmd+Shift+Z also redoes), to navigate recent moves.
 5. Choose New Game to reset the board; confirm first if the current game has progress.
