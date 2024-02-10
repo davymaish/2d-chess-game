@@ -1699,8 +1699,9 @@ test('piece selection visually distinguishes the selected square and announces l
   assert.equal(selectedSquare.classList.contains('selected-square'), true);
   assert.equal(selectedSquare.classList.contains('allowed'), false);
   assert.equal(destinationSquares.get(33).classList.contains('allowed'), true);
+  assert.equal(destinationSquares.get(33).classList.contains('allowed-quiet'), true);
   assert.equal(destinationSquares.get(44).classList.contains('selected-square'), false);
-  assert.equal(game.selectionStatus.textContent, 'white knight selected on e2. Legal destinations (2): c3, d4.');
+  assert.equal(game.selectionStatus.textContent, 'white knight selected on e2. Legal destinations (2): c3 (quiet move), d4 (quiet move).');
 });
 
 test('clearing board highlights removes both selection and destination states and clears the announcement', () => {
@@ -1713,6 +1714,7 @@ test('clearing board highlights removes both selection and destination states an
   const destination = { classList: classList() };
   selected.classList.add('selected-square');
   destination.classList.add('allowed');
+  destination.classList.add('allowed-capture');
   game.board = {
     querySelectorAll: selector => selector === '.allowed' ? [destination] : selector === '.selected-square' ? [selected] : [],
   };
@@ -1721,6 +1723,32 @@ test('clearing board highlights removes both selection and destination states an
   game.clearSquares();
   assert.equal(selected.classList.contains('selected-square'), false);
   assert.equal(destination.classList.contains('allowed'), false);
+  assert.equal(destination.classList.contains('allowed-capture'), false);
   assert.equal(game.selectionStatus.textContent, '');
   assert.equal(game.allowedMoves, null);
+});
+
+test('move-kind classification differentiates quiet moves, captures, en passant, and castling', () => {
+  const Pawn = pieceClass('Pawn');
+  const King = pieceClass('King');
+  const whitePawn = new Pawn(35, 'whitePawn1');
+  const blackPawn = new Pawn(34, 'blackPawn1');
+  const game = createGame([whitePawn, blackPawn], whitePawn);
+  game.enPassantTarget = null;
+  game.enPassantPawn = null;
+  assert.equal(game.getMoveKind(whitePawn, 45), 'quiet');
+  assert.equal(game.getMoveKind(whitePawn, 34), 'capture');
+  game.enPassantTarget = 44;
+  game.enPassantPawn = blackPawn;
+  assert.equal(game.getMoveKind(whitePawn, 44), 'en-passant');
+  assert.equal(game.getMoveKind(new King(15, 'whiteKing'), 17), 'castling');
+});
+
+test('screen-reader destination feedback names captures and special move types', () => {
+  const piece = { color: 'white', rank: 'king', position: 15 };
+  const game = createGame([], null);
+  game.selectionStatus = { textContent: '' };
+  game.getMoveKind = (_piece, position) => ({ 16: 'quiet', 24: 'capture', 17: 'castling' })[position];
+  game.announceSelection(piece, [16, 24, 17]);
+  assert.equal(game.selectionStatus.textContent, 'white king selected on e1. Legal destinations (3): f1 (quiet move), d2 (capture), g1 (castling).');
 });
