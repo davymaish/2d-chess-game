@@ -200,6 +200,14 @@ img{
 #board .in-check {
 	box-shadow: inset 0 0 0 4px #b71c1c;
 }
+#board .last-move {
+	background-image: linear-gradient(rgba(255, 193, 7, 0.36), rgba(255, 193, 7, 0.36));
+	box-shadow: inset 0 0 0 3px #8a5a00;
+}
+#board .in-check.last-move {
+	background-image: linear-gradient(rgba(255, 193, 7, 0.28), rgba(255, 193, 7, 0.28));
+	box-shadow: inset 0 0 0 3px #8a5a00, inset 0 0 0 7px #b71c1c;
+}
 .game-status {
 	clear: both;
 	min-height: 1.5em;
