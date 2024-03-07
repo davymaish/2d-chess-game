@@ -27,6 +27,7 @@ for (const file of [
 
 const gameSource = fs.readFileSync(path.join(root, 'src/Game.js'), 'utf8').split('\nconst pieces = [')[0];
 vm.runInContext(gameSource, context, { filename: 'src/Game.js' });
+vm.runInContext(fs.readFileSync(path.join(root, 'src/board-orientation.js'), 'utf8'), context, { filename: 'src/board-orientation.js' });
 
 function pieceClass(name) {
   return vm.runInContext(name, context);
@@ -99,6 +100,51 @@ test('last-move styling layers over square themes and preserves a distinct check
 	const stylesheet = fs.readFileSync(path.join(root, 'assets/chess.css'), 'utf8');
 	assert.match(stylesheet, /#board\s+\.last-move\s*\{[^}]*background-image\s*:/s);
 	assert.match(stylesheet, /#board\s+\.in-check\.last-move\s*\{[^}]*box-shadow\s*:[^}]*#b71c1c/is);
+});
+
+test('board flip toggles orientation without replacing squares or pieces and keeps pieces upright', () => {
+	const makeClassList = () => {
+		const values = new Set();
+		return { add: value => values.add(value), remove: value => values.delete(value), contains: value => values.has(value) };
+	};
+	const pieceA = { classList: makeClassList() };
+	const pieceB = { classList: makeClassList() };
+	const originalPieces = [pieceA, pieceB];
+	const originalSquares = [{ id: '11' }, { id: '88' }];
+	const boardClasses = makeClassList();
+	const board = {
+		classList: boardClasses,
+		dataset: { orientation: 'white' },
+		offsetWidth: 600,
+		querySelectorAll: selector => selector === '.piece' ? originalPieces : selector === '.square' ? originalSquares : [],
+	};
+	const button = { attributes: {}, setAttribute(name, value) { this.attributes[name] = value; } };
+	const originalGetElementById = context.document.getElementById;
+	context.document.getElementById = id => id === 'board' ? board : id === 'flip-board' ? button : null;
+	try {
+		assert.equal(context.boardAnimate(), 'black');
+		assert.equal(board.dataset.orientation, 'black');
+		assert.equal(boardClasses.contains('animate'), true);
+		assert.equal(pieceA.classList.contains('forward'), true);
+		assert.equal(pieceA.classList.contains('backward'), false);
+		assert.equal(button.attributes['aria-pressed'], 'true');
+		assert.strictEqual(board.querySelectorAll('.piece')[0], pieceA);
+		assert.strictEqual(board.querySelectorAll('.piece')[1], pieceB);
+		assert.strictEqual(board.querySelectorAll('.square')[0], originalSquares[0]);
+		assert.strictEqual(board.querySelectorAll('.square')[1], originalSquares[1]);
+
+		assert.equal(context.boardAnimate(), 'white');
+		assert.equal(board.dataset.orientation, 'white');
+		assert.equal(boardClasses.contains('animate-backward'), true);
+		assert.equal(pieceA.classList.contains('backward'), true);
+		assert.equal(pieceA.classList.contains('forward'), false);
+		assert.equal(button.attributes['aria-pressed'], 'false');
+		assert.strictEqual(board.querySelectorAll('.piece')[0], pieceA);
+		assert.strictEqual(board.querySelectorAll('.square')[0], originalSquares[0]);
+	}
+	finally {
+		context.document.getElementById = originalGetElementById;
+	}
 });
 
 test('rook generates horizontal and vertical moves from a central square', () => {
