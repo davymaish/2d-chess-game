@@ -23,3 +23,24 @@ function boardAnimate() {
 	if (button) button.setAttribute('aria-pressed', String(isFlipped));
 	return nextOrientation;
 }
+
+function initializeBoardCoordinates(board = document.getElementById('board')) {
+	if (!board || typeof board.querySelectorAll !== 'function') return false;
+	board.setAttribute('role', 'grid');
+	board.setAttribute('aria-label', 'Chess board');
+	Array.from(board.children || []).forEach(row => {
+		if (row.classList && (row.classList.contains('odd') || row.classList.contains('even'))) row.setAttribute('role', 'row');
+	});
+	board.querySelectorAll('.square').forEach(square => {
+		const match = /^([1-8])-([a-h])$/.exec(square.getAttribute('data-square') || '');
+		if (!match) return;
+		const [, rank, file] = match;
+		square.dataset.rank = rank;
+		square.dataset.file = file;
+		square.setAttribute('role', 'gridcell');
+		square.setAttribute('aria-label', `${file}${rank}`);
+	});
+	return true;
+}
+
+initializeBoardCoordinates();
