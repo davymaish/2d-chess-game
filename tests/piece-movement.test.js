@@ -28,6 +28,7 @@ for (const file of [
 const gameSource = fs.readFileSync(path.join(root, 'src/Game.js'), 'utf8').split('\nconst pieces = [')[0];
 vm.runInContext(gameSource, context, { filename: 'src/Game.js' });
 vm.runInContext(fs.readFileSync(path.join(root, 'src/board-orientation.js'), 'utf8'), context, { filename: 'src/board-orientation.js' });
+vm.runInContext(fs.readFileSync(path.join(root, 'src/chess-clock.js'), 'utf8'), context, { filename: 'src/chess-clock.js' });
 
 function pieceClass(name) {
   return vm.runInContext(name, context);
@@ -50,6 +51,70 @@ function onBoard(position) {
 function validPositions(groups) {
   return [...groups.flat().filter(onBoard)].sort((a, b) => a - b);
 }
+
+test('chess clock tracks elapsed time and switches, pauses, and resumes the active side', () => {
+	let now = 0;
+	let intervalCallback;
+	let nextTimerId = 1;
+	const clearedTimers = [];
+	const updates = [];
+	const clock = new (pieceClass('ChessClock'))({
+		whiteSeconds: 30,
+		blackSeconds: 45,
+		onTick: state => updates.push(state),
+		now: () => now,
+		setTimer: callback => { intervalCallback = callback; return nextTimerId++; },
+		clearTimer: id => clearedTimers.push(id),
+	});
+
+	assert.equal(clock.start(), true);
+	assert.equal(clock.start(), false, 'a running clock cannot start twice');
+	now = 2300;
+	assert.equal(clock.tick(), true);
+	assert.equal(clock.getRemainingMilliseconds('white'), 27700);
+	assert.equal(clock.getRemainingSeconds('white'), 28);
+	assert.equal(clock.switchActiveSide(), true);
+	assert.equal(clock.activeColor, 'black');
+	now = 4800;
+	assert.equal(clock.pause(), true);
+	assert.equal(clock.running, false);
+	assert.equal(clock.getRemainingMilliseconds('black'), 42500);
+	assert.ok(clearedTimers.length > 0);
+	now = 9000;
+	assert.equal(clock.resume(), true);
+	now = 10000;
+	assert.equal(clock.pause(), true);
+	assert.equal(clock.getRemainingMilliseconds('black'), 41500);
+	assert.equal(clock.running, false);
+	assert.equal(updates.at(-1).activeColor, 'black');
+	assert.equal(updates.at(-1).running, false);
+	assert.equal(typeof intervalCallback, 'function');
+});
+
+test('chess clock flags exactly once at zero and rejects invalid colors or time values', () => {
+	let now = 0;
+	const flags = [];
+	const clock = new (pieceClass('ChessClock'))({
+		whiteSeconds: 1,
+		blackSeconds: 5,
+		onFlag: result => flags.push(result),
+		now: () => now,
+		setTimer: () => 1,
+		clearTimer() {},
+	});
+	const stubTimers = { setTimer: () => 1, clearTimer() {} };
+	assert.throws(() => new (pieceClass('ChessClock'))({ ...stubTimers, whiteSeconds: -1 }), /nonnegative/);
+	assert.throws(() => new (pieceClass('ChessClock'))({ ...stubTimers, activeColor: 'red' }), /Invalid chess clock color/);
+	assert.throws(() => clock.getRemainingSeconds('red'), /Invalid chess clock color/);
+	clock.start();
+	now = 1200;
+	assert.equal(clock.tick(), false);
+	assert.deepEqual(flags.map(result => ({ ...result })), [{ flaggedColor: 'white', winner: 'black' }]);
+	assert.equal(clock.start(), false);
+	assert.equal(clock.pause(), false);
+	assert.equal(clock.tick(), false);
+	assert.equal(flags.length, 1);
+});
 
 test('last-move highlight marks every origin and destination and replaces the prior move', () => {
 	const makeClassList = () => {
