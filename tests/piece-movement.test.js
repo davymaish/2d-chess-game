@@ -116,6 +116,32 @@ test('chess clock flags exactly once at zero and rejects invalid colors or time 
 	assert.equal(flags.length, 1);
 });
 
+test('chess clock presets and increments add time to the side that just completed a move', () => {
+	assert.deepEqual({ ...context.getChessClockPreset('bullet-1-0') }, { label: 'Bullet 1+0', baseSeconds: 60, incrementSeconds: 0 });
+	assert.deepEqual({ ...context.getChessClockPreset('blitz-3-2') }, { label: 'Blitz 3+2', baseSeconds: 180, incrementSeconds: 2 });
+	assert.deepEqual({ ...context.getChessClockPreset('rapid-15-10') }, { label: 'Rapid 15+10', baseSeconds: 900, incrementSeconds: 10 });
+	assert.equal(context.getChessClockPreset('unknown'), null);
+
+	let now = 0;
+	const clock = new (pieceClass('ChessClock'))({
+		whiteSeconds: 5,
+		blackSeconds: 5,
+		incrementSeconds: 2,
+		now: () => now,
+		setTimer: () => 1,
+		clearTimer() {},
+	});
+	clock.start();
+	now = 1000;
+	assert.equal(clock.switchActiveSide(), true);
+	assert.equal(clock.getRemainingSeconds('white'), 6, 'white receives the configured increment before black starts');
+	assert.equal(clock.getRemainingSeconds('black'), 5);
+	now = 2000;
+	assert.equal(clock.switchActiveSide(), true);
+	assert.equal(clock.getRemainingSeconds('black'), 6, 'black receives the same increment after its move');
+	assert.throws(() => new (pieceClass('ChessClock'))({ incrementSeconds: -1, setTimer: () => 1, clearTimer() {} }), /nonnegative/);
+});
+
 test('last-move highlight marks every origin and destination and replaces the prior move', () => {
 	const makeClassList = () => {
 		const values = new Set();
