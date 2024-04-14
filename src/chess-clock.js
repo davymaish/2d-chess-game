@@ -1,6 +1,20 @@
+const CHESS_CLOCK_PRESETS = Object.freeze({
+	'bullet-1-0': Object.freeze({ label: 'Bullet 1+0', baseSeconds: 60, incrementSeconds: 0 }),
+	'blitz-3-2': Object.freeze({ label: 'Blitz 3+2', baseSeconds: 180, incrementSeconds: 2 }),
+	'blitz-5-0': Object.freeze({ label: 'Blitz 5+0', baseSeconds: 300, incrementSeconds: 0 }),
+	'rapid-10-0': Object.freeze({ label: 'Rapid 10+0', baseSeconds: 600, incrementSeconds: 0 }),
+	'rapid-15-10': Object.freeze({ label: 'Rapid 15+10', baseSeconds: 900, incrementSeconds: 10 }),
+});
+
+function getChessClockPreset(presetId) {
+	const preset = CHESS_CLOCK_PRESETS[presetId];
+	return preset ? { ...preset } : null;
+}
+
 class ChessClock {
-	constructor({ whiteSeconds = 300, blackSeconds = 300, activeColor = 'white', onTick = () => {}, onFlag = () => {}, now = () => Date.now(), setTimer = setInterval, clearTimer = clearInterval } = {}) {
+	constructor({ whiteSeconds = 300, blackSeconds = 300, incrementSeconds = 0, activeColor = 'white', onTick = () => {}, onFlag = () => {}, now = () => Date.now(), setTimer = setInterval, clearTimer = clearInterval } = {}) {
 		this.validateColor(activeColor);
+		this.incrementMilliseconds = this.secondsToMilliseconds(incrementSeconds);
 		this.remainingMilliseconds = {
 			white: this.secondsToMilliseconds(whiteSeconds),
 				black: this.secondsToMilliseconds(blackSeconds),
@@ -77,6 +91,7 @@ class ChessClock {
 			if (this.flaggedColor) return false;
 			this.lastTickAt = this.now();
 		}
+		if (this.remainingMilliseconds[this.activeColor] > 0) this.remainingMilliseconds[this.activeColor] += this.incrementMilliseconds;
 		this.activeColor = color;
 		this.emitTick();
 		return true;
