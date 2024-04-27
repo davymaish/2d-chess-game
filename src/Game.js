@@ -24,6 +24,7 @@ class Game {
 		this.pendingCaptureState = null;
 		this.lastMove = null;
 		this.pendingCastleRookMove = null;
+		this.clock = null;
 		this.halfmoveClock = 0;
 		this.pendingCapture = false;
 		this.isCastlingRookMove = false;
@@ -377,9 +378,16 @@ class Game {
 		if (event) event.preventDefault();
 	}
 
+	attachClock(clock) {
+		if (!clock || clock.activeColor !== this.turn || typeof clock.start !== 'function' || typeof clock.switchActiveSide !== 'function') return false;
+		this.clock = clock;
+		return clock.running ? true : clock.start();
+	}
+
 	finishMove(movingColor) {
 		if (this.gameOver) return false;
 		this.changeTurn();
+		if (!this.isCastlingRookMove && this.clock) this.clock.switchActiveSide(this.turn);
 		if (!this.isCastlingRookMove) this.recordPosition();
 		const outcome = this.getGameOutcome(this.turn);
 		if (!this.isCastlingRookMove && this.pendingHistoryMove) {
