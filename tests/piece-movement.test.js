@@ -1696,22 +1696,36 @@ test('move history displays moves in chronological order with full-move numbers'
 test('finishMove commits a completed move but skips a nested castling rook move', () => {
   const game = createGame([], null);
   const recorded = [];
+  const clockChanges = [];
+  let clockStarts = 0;
   game.isCastlingRookMove = false;
   game.pendingHistoryMove = { color: 'white', rank: 'pawn', from: 25, to: 45, isCapture: false };
   game.recordMoveHistory = (move) => recorded.push(move);
-  game.changeTurn = () => {};
+  game.turn = 'white';
+  game.changeTurn = () => { game.turn = game.turn === 'white' ? 'black' : 'white'; };
   game.recordPosition = () => {};
   game.getGameOutcome = () => 'ongoing';
   game.updateCheckStatus = () => {};
+	const clock = {
+		activeColor: 'white',
+		running: false,
+		start() { clockStarts += 1; this.running = true; return true; },
+		switchActiveSide(color) { clockChanges.push(color); this.activeColor = color; return true; },
+	};
+	assert.equal(game.attachClock(clock), true);
+	assert.equal(clockStarts, 1);
 
   game.finishMove('white');
   assert.equal(recorded.length, 1);
   assert.equal(game.pendingHistoryMove, null);
+	assert.deepEqual(clockChanges, ['black']);
+	assert.equal(clock.activeColor, 'black');
 
   game.pendingHistoryMove = { color: 'white', rank: 'pawn', from: 78, to: 88, isCapture: false };
   game.isCastlingRookMove = true;
   game.finishMove('white');
   assert.equal(recorded.length, 1, 'nested castling completion must not add an extra history entry');
+	assert.deepEqual(clockChanges, ['black'], 'nested rook animation must not switch the clock again');
 });
 
 test('finishMove appends the checkmate marker to SAN history', () => {
