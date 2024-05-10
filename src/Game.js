@@ -381,6 +381,11 @@ class Game {
 	attachClock(clock) {
 		if (!clock || clock.activeColor !== this.turn || typeof clock.start !== 'function' || typeof clock.switchActiveSide !== 'function') return false;
 		this.clock = clock;
+		const previousOnFlag = typeof clock.onFlag === 'function' ? clock.onFlag : () => {};
+		clock.onFlag = result => {
+			try { previousOnFlag(result); }
+			finally { this.handleTimeout(result.flaggedColor); }
+		};
 		return clock.running ? true : clock.start();
 	}
 
@@ -728,6 +733,7 @@ class Game {
 	finishGame(message) {
 		if (this.gameOver) return false;
 		this.gameOver = true;
+		if (this.clock && typeof this.clock.stop === 'function') this.clock.stop();
 		const endScene = document.getElementById('endscene');
 		const result = endScene.getElementsByClassName('winning-sign')[0];
 		result.textContent = message;
@@ -737,6 +743,30 @@ class Game {
 		this.updateHistoryControls();
 		endScene.classList.add('show');
 		return true;
+	}
+
+	hasMatingMaterial(color) {
+		const material = this.getPiecesByColor(color).filter(piece => piece.rank !== 'king');
+		if (material.some(piece => ['pawn', 'rook', 'queen'].includes(piece.rank))) return true;
+		const bishops = material.filter(piece => piece.rank === 'bishop');
+		const knights = material.filter(piece => piece.rank === 'knight');
+		if (bishops.length && knights.length) return true;
+		if (knights.length >= 2) return true;
+		if (bishops.length >= 2) {
+			const squareColor = position => (Math.floor(position / 10) + position % 10) % 2;
+			return new Set(bishops.map(bishop => squareColor(bishop.position))).size > 1;
+		}
+		return false;
+	}
+
+	handleTimeout(flaggedColor) {
+		if (this.gameOver || !['white', 'black'].includes(flaggedColor)) return false;
+		const winner = flaggedColor === 'white' ? 'black' : 'white';
+		const capitalize = color => color.charAt(0).toUpperCase() + color.slice(1);
+		const message = this.hasMatingMaterial(winner)
+			? `${capitalize(flaggedColor)} ran out of time. ${capitalize(winner)} wins.`
+			: `${capitalize(flaggedColor)} ran out of time. Draw — ${capitalize(winner)} cannot checkmate.`;
+		return this.finishGame(message);
 	}
 
 	myKingChecked(pos, kill=true, capturedPiece=null){
