@@ -93,6 +93,98 @@ test('chess clock tracks elapsed time and switches, pauses, and resumes the acti
 	assert.equal(typeof intervalCallback, 'function');
 });
 
+test('clock lifecycle handles interval callbacks, duplicate transitions, clock rollback, and stop', () => {
+	let now = 0;
+	let intervalCallback;
+	let nextTimerId = 1;
+	const cleared = [];
+	const clock = new (pieceClass('ChessClock'))({
+		whiteSeconds: 4,
+		blackSeconds: 3,
+		incrementSeconds: 1,
+		now: () => now,
+		setTimer: callback => { intervalCallback = callback; return nextTimerId++; },
+		clearTimer: id => cleared.push(id),
+	});
+
+	assert.equal(clock.start(), true);
+	assert.equal(clock.start(), false);
+	const firstTimer = clock.timer;
+	now = 1000;
+	intervalCallback();
+	assert.equal(clock.getRemainingMilliseconds('white'), 3000);
+	assert.equal(clock.switchActiveSide('black'), true);
+	assert.equal(clock.getRemainingMilliseconds('white'), 4000, 'the completed move receives its increment');
+	assert.equal(clock.switchActiveSide('black'), false, 'switching to the current side is a no-op');
+	assert.equal(clock.getRemainingMilliseconds('white'), 4000, 'a no-op side switch does not add another increment');
+
+	now = 2000;
+	assert.equal(clock.pause(), true);
+	assert.equal(clock.getRemainingMilliseconds('black'), 2000);
+	assert.equal(clock.pause(), false);
+	assert.ok(cleared.includes(firstTimer));
+	assert.equal(clock.resume(), true);
+	const secondTimer = clock.timer;
+	assert.notEqual(secondTimer, firstTimer);
+	now = 1500;
+	intervalCallback();
+	assert.equal(clock.getRemainingMilliseconds('black'), 2000, 'a backward-moving wall clock cannot add time');
+	now = 2500;
+	intervalCallback();
+	assert.equal(clock.getRemainingMilliseconds('black'), 1000);
+	clock.stop();
+	assert.equal(clock.running, false);
+	assert.equal(clock.timer, null);
+	assert.ok(cleared.includes(secondTimer));
+	assert.equal(clock.tick(), false, 'a stopped clock cannot be ticked');
+	assert.equal(clock.start(), true, 'a stopped, unflagged clock may be started again');
+	assert.equal(clock.running, true);
+	clock.stop();
+});
+
+test('completed moves charge only the moving side, award one increment, and flag on pause at zero', () => {
+	let now = 0;
+	const flags = [];
+	const clock = new (pieceClass('ChessClock'))({
+		whiteSeconds: 10,
+		blackSeconds: 10,
+		incrementSeconds: 2,
+		now: () => now,
+		setTimer: () => 1,
+		clearTimer() {},
+	});
+	const game = createGame([], null);
+	game.turn = 'white';
+	game.turnSign = { innerHTML: '' };
+	game.clock = clock;
+	game.isCastlingRookMove = false;
+	game.recordPosition = () => {};
+	game.getGameOutcome = () => 'ongoing';
+	game.updateCheckStatus = () => {};
+	assert.equal(game.attachClock(clock), true);
+	now = 3000;
+	game.finishMove('white');
+	assert.equal(game.turn, 'black');
+	assert.equal(clock.activeColor, 'black');
+	assert.equal(clock.getRemainingSeconds('white'), 9, 'white spent three seconds and received one two-second increment');
+	assert.equal(clock.getRemainingSeconds('black'), 10);
+
+	const nearZero = new (pieceClass('ChessClock'))({
+		whiteSeconds: 1,
+		blackSeconds: 5,
+		onFlag: result => flags.push(result),
+		now: () => now,
+		setTimer: () => 2,
+		clearTimer() {},
+	});
+	assert.equal(nearZero.start(), true);
+	now += 1000;
+	assert.equal(nearZero.pause(), false, 'pause processes elapsed time before stopping');
+	assert.equal(nearZero.flaggedColor, 'white');
+	assert.deepEqual(flags.map(result => ({ ...result })), [{ flaggedColor: 'white', winner: 'black' }]);
+	assert.equal(nearZero.resume(), false, 'a flagged clock cannot restart');
+});
+
 test('chess clock flags exactly once at zero and rejects invalid colors or time values', () => {
 	let now = 0;
 	const flags = [];
