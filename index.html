@@ -194,8 +194,10 @@
 			<button id="new-game" class="new-game" type="button">New Game</button>
 			<button id="resign-game" class="resign-game" type="button">Resign</button>
 			<p id="turn" class="turn-text"> White's Turn</p>
-			<p id="game-status" class="game-status" role="status" aria-live="polite" aria-atomic="true">White to move.</p>
-			<p id="selection-status" class="visually-hidden" role="status" aria-live="polite" aria-atomic="true">Select a piece to hear its legal destinations.</p>
+				<p id="game-status" class="game-status" role="status" aria-live="polite" aria-atomic="true">White to move.</p>
+				<p id="selection-status" class="visually-hidden" role="status" aria-live="polite" aria-atomic="true">Select a piece to hear its legal destinations.</p>
+				<label class="sound-setting"><input id="move-sounds" type="checkbox"> Move and capture sounds</label>
+				<p id="sound-status" class="visually-hidden" role="status" aria-live="polite" aria-atomic="true">Move sounds are off.</p>
 		</div>
 		<section class="chess-clock" aria-labelledby="clock-title">
 			<h2 id="clock-title">Chess clock</h2>
