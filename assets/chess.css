@@ -211,6 +211,17 @@ img{
 #board .square {
 	position: relative;
 }
+#board .square:focus-visible {
+	outline: 4px solid #ff6f00;
+	outline-offset: -5px;
+	z-index: 3;
+}
+button:focus-visible,
+select:focus-visible,
+input:focus-visible {
+	outline: 3px solid #00695c;
+	outline-offset: 2px;
+}
 #board .square[data-file="a"]::before,
 #board .square[data-rank="1"]::after {
 	position: absolute;
