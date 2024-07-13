@@ -526,9 +526,11 @@ test('board coordinates and accessible square names stay tied to square identity
 	assert.equal(a1.dataset.file, 'a');
 	assert.equal(a1.attribute('role'), 'gridcell');
 	assert.equal(a1.attribute('aria-label'), 'a1');
+	assert.equal(a1.attribute('tabindex'), '0', 'one square provides a predictable Tab entry point');
 	assert.equal(h8.dataset.rank, '8');
 	assert.equal(h8.dataset.file, 'h');
 	assert.equal(h8.attribute('aria-label'), 'h8');
+	assert.equal(h8.attribute('tabindex'), '-1', 'other squares use roving tabindex');
 
 	const originalGetElementById = context.document.getElementById;
 	context.document.getElementById = id => id === 'board' ? board : id === 'flip-board' ? { setAttribute() {} } : null;
@@ -551,6 +553,55 @@ test('board coordinates and accessible square names stay tied to square identity
 	assert.match(stylesheet, /\.square\[data-file="a"\]::before\s*\{[^}]*content:\s*attr\(data-rank\)/s);
 	assert.match(stylesheet, /\.square\[data-rank="1"\]::after\s*\{[^}]*content:\s*attr\(data-file\)/s);
 	assert.match(stylesheet, /\[data-orientation="black"\].*?transform:\s*rotate\(180deg\)/s);
+	assert.match(stylesheet, /#board \.square:focus-visible\s*\{[^}]*outline:/s);
+});
+
+test('keyboard board navigation follows the visible orientation and activates selection, moves, and cancellation', () => {
+	const squares = [11, 12, 21, 22].map(id => ({
+		id: String(id),
+		dataset: { rank: String(Math.floor(id / 10)), file: String.fromCharCode(96 + id % 10) },
+		attributes: {},
+		setAttribute(name, value) { this.attributes[name] = value; },
+		focus() { this.focused = true; },
+	}));
+	const board = { dataset: { orientation: 'white' }, listeners: {}, addEventListener(type, callback) { this.listeners[type] = callback; } };
+	const game = createGame([], null);
+	game.board = board;
+	game.squares = squares;
+	game.turn = 'white';
+	game.addKeyboardControls();
+	assert.equal(typeof board.listeners.keydown, 'function');
+	const dispatch = (key, square) => {
+		let prevented = false;
+		game.handleBoardKeydown({ key, target: square, preventDefault() { prevented = true; } });
+		return prevented;
+	};
+	assert.equal(dispatch('ArrowRight', squares[0]), true);
+	assert.equal(squares[1].focused, true);
+	assert.equal(squares[1].attributes.tabindex, '0');
+	assert.equal(squares[0].attributes.tabindex, '-1');
+	assert.equal(dispatch('ArrowUp', squares[1]), true);
+	assert.equal(squares[3].focused, true);
+	board.dataset.orientation = 'black';
+	assert.equal(dispatch('ArrowRight', squares[3]), true);
+	assert.equal(squares[2].focused, true, 'horizontal navigation reverses with the flipped board');
+
+	const piece = { color: 'white', img: { id: 'whiteKnight1' } };
+	game.getPieceByPos = position => position === 21 ? piece : null;
+	let selected;
+	game.pieceMove = event => { selected = event.target; };
+	assert.equal(dispatch('Enter', squares[2]), true);
+	assert.strictEqual(selected, piece.img);
+	game.clickedPiece = piece;
+	game.allowedMoves = [22];
+	game.movePiece = (_event, destination) => destination;
+	assert.strictEqual(game.handleBoardKeydown({ key: ' ', target: squares[3], preventDefault() {} }), squares[3]);
+	let cleared = false;
+	game.clearSquares = () => { cleared = true; };
+	assert.equal(dispatch('Escape', squares[3]), true);
+	assert.equal(game.clickedPiece, null);
+	assert.equal(game.allowedMoves, null);
+	assert.equal(cleared, true);
 });
 
 test('rook generates horizontal and vertical moves from a central square', () => {
