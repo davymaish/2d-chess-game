@@ -39,7 +39,16 @@ function initializeBoardCoordinates(board = document.getElementById('board')) {
 		square.dataset.rank = rank;
 		square.dataset.file = file;
 		square.setAttribute('role', 'gridcell');
-		square.setAttribute('aria-label', `${file}${rank}`);
+		const image = typeof square.querySelector === 'function' ? square.querySelector('img') : null;
+		let pieceDescription = '';
+		if (image) {
+			const pieceMatch = /^(white|black)([A-Z][a-z]+)/.exec(image.id || '');
+			if (pieceMatch) {
+				pieceDescription = `${pieceMatch[1]} ${pieceMatch[2].replace(/Promoted$/, '').toLowerCase()}`;
+				image.setAttribute('alt', pieceDescription);
+			}
+		}
+		square.setAttribute('aria-label', `${file}${rank}${pieceDescription ? `, ${pieceDescription}` : ''}`);
 		square.setAttribute('tabindex', firstSquare ? '0' : '-1');
 		firstSquare = false;
 	});
