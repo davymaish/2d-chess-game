@@ -651,6 +651,13 @@ test('page controls and live game elements expose accessible names and semantic 
 	assert.match(markup, /<label for="clock-preset">/);
 });
 
+test('system motion and contrast preferences retain usable chess-state indicators', () => {
+	const stylesheet = fs.readFileSync(path.join(root, 'assets/chess.css'), 'utf8');
+	assert.match(stylesheet, /@media\s*\(prefers-reduced-motion:\s*reduce\)[\s\S]*?animation-duration:\s*0\.01ms/);
+	assert.match(stylesheet, /@media\s*\(prefers-contrast:\s*more\)[\s\S]*?#board \.selected-square[\s\S]*?outline:/);
+	assert.match(stylesheet, /@media\s*\(forced-colors:\s*active\)[\s\S]*?outline:\s*3px solid Highlight/);
+});
+
 test('rook generates horizontal and vertical moves from a central square', () => {
   const Rook = pieceClass('Rook');
   const rook = new Rook(44, 'whiteRook1');
