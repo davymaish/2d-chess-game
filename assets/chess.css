@@ -501,3 +501,59 @@ input:focus-visible {
 		flex: 1 1 100%;
 	}
 }
+
+@media (prefers-reduced-motion: reduce) {
+	*,
+	*::before,
+	*::after {
+		animation-duration: 0.01ms !important;
+		animation-iteration-count: 1 !important;
+		transition-duration: 0.01ms !important;
+		scroll-behavior: auto !important;
+	}
+}
+
+@media (prefers-contrast: more) {
+	body {
+		background: #fff;
+		color: #111;
+	}
+	#board {
+		border-color: #000;
+	}
+	#board .even div:nth-child(even),
+	#board .odd div:nth-child(odd) {
+		background-color: #fff;
+	}
+	#board .even div:nth-child(odd),
+	#board .odd div:nth-child(even) {
+		background-color: #bdbdbd;
+	}
+	button,
+	select,
+	input {
+		border-width: 2px;
+	}
+	#board .selected-square {
+		outline: 4px solid #000;
+		outline-offset: -5px;
+	}
+}
+
+@media (forced-colors: active) {
+	#board .square {
+		border: 1px solid CanvasText;
+	}
+	#board .selected-square,
+	#board .allowed,
+	#board .last-move,
+	#board .in-check {
+		outline: 3px solid Highlight;
+		forced-color-adjust: none;
+	}
+	button:focus-visible,
+	select:focus-visible,
+	input:focus-visible {
+		outline-color: Highlight;
+	}
+}
