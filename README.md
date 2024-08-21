@@ -40,6 +40,12 @@ _The game in action._
 7. Choose Resign and confirm to end the game; the result screen offers a new-game action.
 8. The game displays the winner when the king is checked.
 
+## Keyboard and sound preferences
+
+Tab to the chessboard to focus its first square. Use the arrow keys to move between squares; navigation reverses with the flipped board. Press Enter or Space to select a current-side piece or play a highlighted legal move, and Escape to cancel the current selection. Undo uses Ctrl/Cmd+Z; redo uses Ctrl/Cmd+Y or Ctrl/Cmd+Shift+Z. Other controls, including Flip Board, New Game, Resign, promotion choices, and the chess clock, are standard keyboard-focusable buttons or form controls.
+
+The “Move and capture sounds” checkbox is off by default and saves the preference in browser storage when permitted. When enabled, move, capture, check, and game-end cues are brief and quiet; they are skipped when the browser does not support Web Audio. Reduced animation, higher contrast, and forced-color adjustments follow the corresponding operating-system/browser accessibility preferences.
+
 ## Running Tests
 
 The movement regression tests use Node.js's built-in test runner and require no additional dependencies. With Node.js 18 or newer installed, run:
