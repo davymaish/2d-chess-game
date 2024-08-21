@@ -651,6 +651,41 @@ test('page controls and live game elements expose accessible names and semantic 
 	assert.match(markup, /<label for="clock-preset">/);
 });
 
+test('keyboard boundary, finished-game, and unavailable sound-storage states fail safely', () => {
+	const square = {
+		id: '11',
+		dataset: { rank: '1', file: 'a' },
+		setAttribute() {},
+		focus() { this.focused = true; },
+	};
+	const game = createGame([], null);
+	game.squares = [square];
+	game.board = { dataset: { orientation: 'white' } };
+	let prevented = false;
+	assert.equal(game.handleBoardKeydown({ key: 'ArrowLeft', target: square, preventDefault() { prevented = true; } }), true);
+	assert.equal(prevented, true, 'the grid consumes boundary arrows without moving focus off-board');
+	assert.equal(square.focused, undefined);
+	game.gameOver = true;
+	assert.equal(game.handleBoardKeydown({ key: 'Enter', target: square, preventDefault() { throw new Error('finished games must not intercept input'); } }), false);
+
+	const previousStorage = context.localStorage;
+	context.localStorage = { getItem() { throw new Error('storage blocked'); }, setItem() { throw new Error('storage blocked'); } };
+	try {
+		const soundGame = createGame([], null);
+		soundGame.moveSoundsToggle = { checked: true, listeners: {}, addEventListener(type, callback) { this.listeners[type] = callback; } };
+		soundGame.soundStatus = { textContent: '' };
+		soundGame.addSoundControls();
+		assert.equal(soundGame.moveSoundsToggle.checked, false);
+		soundGame.moveSoundsToggle.checked = true;
+		assert.doesNotThrow(() => soundGame.moveSoundsToggle.listeners.change());
+		assert.equal(soundGame.soundStatus.textContent, 'Move sounds are on.');
+	}
+	finally {
+		if (previousStorage === undefined) delete context.localStorage;
+		else context.localStorage = previousStorage;
+	}
+});
+
 test('system motion and contrast preferences retain usable chess-state indicators', () => {
 	const stylesheet = fs.readFileSync(path.join(root, 'assets/chess.css'), 'utf8');
 	assert.match(stylesheet, /@media\s*\(prefers-reduced-motion:\s*reduce\)[\s\S]*?animation-duration:\s*0\.01ms/);
