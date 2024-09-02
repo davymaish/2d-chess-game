@@ -651,6 +651,19 @@ test('page controls and live game elements expose accessible names and semantic 
 	assert.match(markup, /<label for="clock-preset">/);
 });
 
+test('mobile layout uses a fluid square grid and keeps captured pieces and controls within the viewport', () => {
+	const markup = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
+	const stylesheet = fs.readFileSync(path.join(root, 'assets/chess.css'), 'utf8');
+	assert.match(markup, /<div class="game-container">/);
+	assert.match(markup, /<div class="game-controls">/);
+	assert.match(stylesheet, /\.game-container\s*\{[^}]*width:\s*min\(100%,\s*600px\)/s);
+	assert.match(stylesheet, /#board\s*\{[^}]*width:\s*100%[^}]*aspect-ratio:\s*1/s);
+	assert.match(stylesheet, /#board > div\s*\{[^}]*grid-template-columns:\s*repeat\(8,/s);
+	assert.match(stylesheet, /#board > div > \.square\s*\{[^}]*aspect-ratio:\s*1/s);
+	assert.match(stylesheet, /@media\s*\(max-width:\s*640px\)[\s\S]*?#sematary[\s\S]*?position:\s*static/);
+	assert.match(stylesheet, /@media\s*\(max-width:\s*640px\)[\s\S]*?\.game-controls\s*\{[^}]*flex-wrap:\s*wrap/s);
+});
+
 test('keyboard boundary, finished-game, and unavailable sound-storage states fail safely', () => {
 	const square = {
 		id: '11',
