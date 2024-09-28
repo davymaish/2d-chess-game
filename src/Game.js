@@ -140,16 +140,15 @@ class Game {
 			return false;
 		}
 		const name = event.target.getAttribute('id');
+		if (event.type === 'click' && this.clickedPiece && this.clickedPiece.name === name) {
+			this.setClickedPiece(null);
+			return this.clearSquares();
+		}
 		const allowedMoves = this.getPieceAllowedMoves(event, name);
 		if (allowedMoves) {
 			const piece = this.getPieceByName(name);
 			const position = piece.position;
 			const clickedSquare = document.getElementById(position);
-
-			/*if (event.type == 'click' && this.clickedPiece && this.clickedPiece.name == name) {
-				this.setClickedPiece(null);
-				return this.clearSquares();
-			}*/
 			clickedSquare.classList.add('selected-square');
 
 			allowedMoves.forEach( allowedMove => {
