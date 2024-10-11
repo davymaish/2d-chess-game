@@ -591,6 +591,107 @@ input:focus-visible {
 	}
 }
 
+@media (max-width: 640px) and (orientation: portrait) {
+	.game-controls .game-status {
+		flex-basis: 100%;
+	}
+	.chess-clock,
+	.move-history {
+		width: min(94vw, 600px);
+		margin-inline: auto;
+	}
+	.clock-status,
+	.game-status {
+		overflow-wrap: anywhere;
+	}
+	.move-history .move-list {
+		max-height: min(12rem, 32vh);
+	}
+}
+
+@media (max-width: 900px) and (orientation: landscape) and (max-height: 520px) {
+	.game-container {
+		display: grid;
+		grid-template-columns: minmax(0, min(58vh, 360px)) minmax(0, 1fr);
+		grid-template-areas:
+			"board status"
+			"captured status"
+			"clock history";
+		align-items: start;
+		gap: 0.75rem;
+	}
+	#board {
+		grid-area: board;
+	}
+	#sematary {
+		grid-area: captured;
+		position: static;
+		display: grid;
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		gap: 0.35rem;
+		width: 100%;
+		margin: 0;
+	}
+	#whiteSematary,
+	#blackSematary {
+		position: static;
+		width: auto;
+		display: grid;
+		grid-template-columns: repeat(5, minmax(0, 1fr));
+		gap: 0.2rem;
+	}
+	#sematary img {
+		width: 100%;
+		height: auto;
+		max-height: 2rem;
+	}
+	#blackSematary img {
+		float: none;
+	}
+	.game-controls {
+		grid-area: status;
+		display: flex;
+		flex-wrap: wrap;
+		align-content: start;
+		justify-content: flex-start;
+		gap: 0.5rem;
+		margin: 0;
+	}
+	.game-controls .turn-text {
+		float: none;
+	}
+	.game-controls .game-status {
+		flex-basis: 100%;
+	}
+	.game-controls .sound-setting {
+		margin: 0.25rem 0;
+	}
+	.chess-clock {
+		grid-area: clock;
+		width: 100%;
+		min-width: 0;
+		margin: 0;
+		padding: 0.65rem;
+	}
+	.move-history {
+		grid-area: history;
+		width: 100%;
+		min-width: 0;
+		margin: 0;
+		padding: 0.65rem;
+	}
+	.move-history .move-list {
+		max-height: min(12rem, 28vh);
+	}
+	.clock-readouts {
+		gap: 0.35rem;
+	}
+	.clock-side {
+		gap: 0.25rem;
+		padding: 0.4rem;
+	}
+}
+
 @media (prefers-reduced-motion: reduce) {
 	*,
 	*::before,
