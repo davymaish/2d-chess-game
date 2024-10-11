@@ -14,6 +14,7 @@ _The game in action._
 - Optional, muted-by-default move, capture, check, and game-end cues with a saved sound preference
 - Keyboard board navigation with arrow keys, Enter/Space activation, Escape cancellation, and visible focus
 - On touch screens, tap a current-side piece to show legal moves, tap a legal destination to move, or tap the selected piece again to cancel
+- Portrait screens keep the clock and move history in a readable vertical flow; short landscape screens place status beside the board and clock beside history
 - Board cells expose their algebraic coordinate and current piece; piece images receive meaningful alternative text
 - Reduced-motion, higher-contrast, and forced-colors modes respect operating-system accessibility settings
 - Distinguishes the selected piece from its legal destinations and announces the destination squares to screen readers

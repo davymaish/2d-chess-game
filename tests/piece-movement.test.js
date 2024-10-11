@@ -664,6 +664,18 @@ test('mobile layout uses a fluid square grid and keeps captured pieces and contr
 	assert.match(stylesheet, /@media\s*\(max-width:\s*640px\)[\s\S]*?\.game-controls\s*\{[^}]*flex-wrap:\s*wrap/s);
 });
 
+test('portrait keeps status panels stacked while short landscape screens pair clock and history', () => {
+	const stylesheet = fs.readFileSync(path.join(root, 'assets/chess.css'), 'utf8');
+	const portrait = stylesheet.split('@media (max-width: 640px) and (orientation: portrait)')[1].split('@media (max-width: 900px)')[0];
+	const landscape = stylesheet.split('@media (max-width: 900px) and (orientation: landscape) and (max-height: 520px)')[1].split('@media (prefers-reduced-motion')[0];
+	assert.match(portrait, /\.chess-clock,[\s\S]*?\.move-history\s*\{[^}]*width:\s*min\(94vw,\s*600px\)/s);
+	assert.match(portrait, /\.move-history \.move-list\s*\{[^}]*max-height:\s*min\(12rem,\s*32vh\)/s);
+	assert.match(landscape, /grid-template-areas:[\s\S]*"board status"[\s\S]*"captured status"[\s\S]*"clock history"/);
+	assert.match(landscape, /\.chess-clock\s*\{[^}]*grid-area:\s*clock[^}]*width:\s*100%/s);
+	assert.match(landscape, /\.move-history\s*\{[^}]*grid-area:\s*history[^}]*width:\s*100%/s);
+	assert.match(landscape, /\.move-history \.move-list\s*\{[^}]*max-height:\s*min\(12rem,\s*28vh\)/s);
+});
+
 test('phone controls and sound preference expose comfortable touch targets', () => {
 	const stylesheet = fs.readFileSync(path.join(root, 'assets/chess.css'), 'utf8');
 	const mobileStyles = stylesheet.split('@media (max-width: 640px)')[1].split('@media (prefers-reduced-motion')[0];
