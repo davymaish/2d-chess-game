@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Browser-level responsive layout smoke checks for representative devices."""
+"""Browser-level responsive layout and persistence checks for representative devices."""
 
 import asyncio
 import os
@@ -96,6 +96,103 @@ async def main():
                             f"{label}: status controls should sit beside the board")
 
                 print(f"PASS {label} ({width}×{height}): square board, 64 square cells, panels fit, no horizontal overflow")
+
+            await page.evaluate("localStorage.clear()")
+            await page.reload(wait_until="load")
+            await page.locator("#whitePawn5").click()
+            await page.locator('[id="45"]').click()
+            saved = await page.evaluate(
+                """() => {
+                    const raw = localStorage.getItem('2d-chess-game:save:v1');
+                    return raw ? JSON.parse(raw) : null;
+                }"""
+            )
+            fail_if(saved is None, "A completed move was not saved to browser storage")
+            fail_if(saved["state"]["turn"] != "black", "Saved state did not record the next side to move")
+            fail_if(not any(piece["name"] == "whitePawn5" and piece["position"] == 45 for piece in saved["state"]["pieces"]),
+                    "Saved state did not record the pawn's moved position")
+
+            await page.reload(wait_until="load")
+            restored = await page.evaluate(
+                """() => ({
+                    turn: document.querySelector('#turn').textContent.trim(),
+                    pawnRestored: Boolean(document.querySelector('[id="45"] img#whitePawn5')),
+                    moveCount: document.querySelectorAll('#move-list > div').length,
+                })"""
+            )
+            fail_if(restored["turn"] != "Black's Turn", "Refresh did not restore the side to move")
+            fail_if(not restored["pawnRestored"], "Refresh did not restore the moved piece to its saved square")
+            fail_if(restored["moveCount"] != 1, "Refresh did not restore the move history")
+
+            await page.locator("#blackPawn5").click()
+            await page.locator('[id="55"]').click()
+            replayed = await page.evaluate(
+                """() => JSON.parse(localStorage.getItem('2d-chess-game:save:v1'))"""
+            )
+            fail_if(replayed["state"]["turn"] != "white", "A move after refresh did not advance the saved turn")
+            fail_if(len(replayed["state"]["moveHistory"]) != 2, "A move after refresh did not extend saved history")
+
+            await page.evaluate("window.confirm = () => true")
+            await page.locator("#new-game").click()
+            await page.wait_for_load_state("load")
+            saved_after_reset = await page.evaluate("localStorage.getItem('2d-chess-game:save:v1')")
+            fail_if(saved_after_reset is not None, "Starting a new game did not clear the saved in-progress game")
+            print("PASS autosave and refresh restore: board, turn, and history survive reload and continue")
+
+            await page.evaluate(
+                """() => {
+                    const positionKey = JSON.stringify([
+                        'white',
+                        'black:king:85,white:king:15,white:queen:81',
+                        'white:-,black:-',
+                        null,
+                    ]);
+                    const save = {
+                        schema: '2d-chess-game',
+                        version: 1,
+                        savedAt: new Date().toISOString(),
+                        state: {
+                            turn: 'white',
+                            pieces: [
+                                { name: 'whiteKing', rank: 'king', color: 'white', position: 15, ableToCastle: false },
+                                { name: 'blackKing', rank: 'king', color: 'black', position: 85, ableToCastle: false },
+                                { name: 'whiteQueenPromoted1', rank: 'queen', color: 'white', position: 81 },
+                            ],
+                            enPassantTarget: null,
+                            enPassantPawn: null,
+                            halfmoveClock: 0,
+                            moveHistory: ['1. a8=Q'],
+                            positionCounts: [[positionKey, 1]],
+                            lastMove: [71, 81],
+                            clock: {
+                                whiteMilliseconds: 120000,
+                                blackMilliseconds: 90000,
+                                incrementMilliseconds: 1000,
+                                activeColor: 'white',
+                                running: false,
+                                flaggedColor: null,
+                            },
+                        },
+                    };
+                    localStorage.setItem('2d-chess-game:save:v1', JSON.stringify(save));
+                }"""
+            )
+            await page.reload(wait_until="load")
+            promoted_restore = await page.evaluate(
+                """() => ({
+                    promotedRank: game.pieces.find(piece => piece.name === 'whiteQueenPromoted1')?.rank,
+                    promotedImage: document.querySelector('[id="81"] img#whiteQueenPromoted1')?.getAttribute('src'),
+                    capturedInTray: Boolean(document.querySelector('#whiteSematary .rook img#whiteRook1')),
+                    whiteClock: document.querySelector('#white-clock').textContent,
+                    activeClock: game.clock?.activeColor,
+                })"""
+            )
+            fail_if(promoted_restore["promotedRank"] != "queen", "Refresh did not restore the promoted piece type")
+            fail_if(not promoted_restore["promotedImage"].endswith("whiteQueen.png"), "Refresh did not restore the promoted piece image")
+            fail_if(not promoted_restore["capturedInTray"], "Refresh did not restore a captured piece to its graveyard tray")
+            fail_if(promoted_restore["whiteClock"] != "2:00", "Refresh did not restore the saved clock time")
+            fail_if(promoted_restore["activeClock"] != "white", "Refresh did not restore the clock's active side")
+            print("PASS promoted-piece and chess-clock restoration")
 
             fail_if(page_errors, "Browser reported page errors: " + "; ".join(page_errors))
         finally:
