@@ -113,6 +113,7 @@ async def main():
                     "Saved state did not record the pawn's moved position")
 
             await page.reload(wait_until="load")
+            await page.locator("#resume-saved-game").click()
             restored = await page.evaluate(
                 """() => ({
                     turn: document.querySelector('#turn').textContent.trim(),
@@ -178,6 +179,7 @@ async def main():
                 }"""
             )
             await page.reload(wait_until="load")
+            await page.locator("#resume-saved-game").click()
             promoted_restore = await page.evaluate(
                 """() => ({
                     promotedRank: game.pieces.find(piece => piece.name === 'whiteQueenPromoted1')?.rank,
@@ -192,7 +194,20 @@ async def main():
             fail_if(not promoted_restore["capturedInTray"], "Refresh did not restore a captured piece to its graveyard tray")
             fail_if(promoted_restore["whiteClock"] != "2:00", "Refresh did not restore the saved clock time")
             fail_if(promoted_restore["activeClock"] != "white", "Refresh did not restore the clock's active side")
-            print("PASS promoted-piece and chess-clock restoration")
+            await page.locator("#clear-saved-game").click()
+            cleared_snapshot = await page.evaluate("localStorage.getItem('2d-chess-game:save:v1')")
+            fail_if(cleared_snapshot is not None, "Clear Saved Game did not remove browser storage")
+            fail_if(await page.locator('[id="81"] img#whiteQueenPromoted1').count() != 1,
+                    "Clearing a save should not discard the currently restored game")
+
+            await page.evaluate("localStorage.setItem('2d-chess-game:save:v1', serializeGameSave(game))")
+            await page.reload(wait_until="load")
+            await page.locator("#start-new-from-save").click()
+            fresh_snapshot = await page.evaluate("localStorage.getItem('2d-chess-game:save:v1')")
+            fail_if(fresh_snapshot is not None, "Start New Game from the resume prompt did not clear the saved game")
+            fail_if(await page.locator('[id="15"] img#whiteKing').count() != 1,
+                    "Start New Game from the resume prompt did not leave a fresh board")
+            print("PASS promoted-piece, clock, explicit resume, clear-save, and start-new behavior")
 
             fail_if(page_errors, "Browser reported page errors: " + "; ".join(page_errors))
         finally:
