@@ -57,7 +57,7 @@ class Game {
 		this.updateBoardAccessibleNames();
 		this.updateCheckStatus();
 		const savedGame = loadGameFromStorage();
-		if (savedGame) this.restoreSavedGame(savedGame);
+		this.addSavedGameControls(savedGame);
 	}
 
 	addEventListeners() {
@@ -602,7 +602,7 @@ class Game {
 		else if (outcome === 'threefold-repetition') this.drawByThreefoldRepetition();
 		if (!this.isCastlingRookMove) {
 			if (this.gameOver) clearGameSaveFromStorage();
-			else saveGameToStorage(this);
+			else this.persistCurrentGame();
 		}
 	}
 
@@ -848,7 +848,7 @@ class Game {
 			}
 			this.refreshOutcomeDisplay();
 			if (this.gameOver) clearGameSaveFromStorage();
-			else saveGameToStorage(this);
+			else this.persistCurrentGame();
 		}
 
 	renderMoveHistory() {
@@ -912,6 +912,60 @@ class Game {
 		if (this.restartButton) this.restartButton.addEventListener('click', () => this.startNewGame());
 	}
 
+	addSavedGameControls(savedGame) {
+		this.savedGameDialog = document.getElementById('saved-game-dialog');
+		this.resumeSavedGameButton = document.getElementById('resume-saved-game');
+		this.startNewFromSaveButton = document.getElementById('start-new-from-save');
+		this.clearSavedGameButton = document.getElementById('clear-saved-game');
+		this.saveStatus = document.getElementById('save-status');
+		if (this.resumeSavedGameButton) this.resumeSavedGameButton.addEventListener('click', () => this.resumeSavedGame());
+		if (this.startNewFromSaveButton) this.startNewFromSaveButton.addEventListener('click', () => this.startNewGameFromSavedGame());
+		if (this.clearSavedGameButton) this.clearSavedGameButton.addEventListener('click', () => this.clearSavedGame());
+		if (this.savedGameDialog) this.savedGameDialog.addEventListener('cancel', event => event.preventDefault());
+		if (savedGame && this.savedGameDialog && typeof this.savedGameDialog.showModal === 'function') {
+			if (this.saveStatus) this.saveStatus.textContent = 'A saved game is available. Resume it or start a new game.';
+			this.savedGameDialog.showModal();
+			return true;
+		}
+		return false;
+	}
+
+	resumeSavedGame() {
+		const savedGame = loadGameFromStorage();
+		if (!savedGame || !this.restoreSavedGame(savedGame)) {
+			if (this.saveStatus) this.saveStatus.textContent = 'The saved game could not be restored.';
+			return false;
+		}
+		if (this.savedGameDialog && this.savedGameDialog.open) this.savedGameDialog.close();
+		if (this.clearSavedGameButton) this.clearSavedGameButton.hidden = false;
+		if (this.saveStatus) this.saveStatus.textContent = 'Saved game restored. Future moves are saved in this browser.';
+		return true;
+	}
+
+	startNewGameFromSavedGame() {
+		clearGameSaveFromStorage();
+		if (this.savedGameDialog && this.savedGameDialog.open) this.savedGameDialog.close();
+		if (this.clearSavedGameButton) this.clearSavedGameButton.hidden = true;
+		if (this.saveStatus) this.saveStatus.textContent = 'Saved game cleared. A new game is ready.';
+		return true;
+	}
+
+	clearSavedGame() {
+		if (!clearGameSaveFromStorage()) return false;
+		if (this.clearSavedGameButton) this.clearSavedGameButton.hidden = true;
+		if (this.saveStatus) this.saveStatus.textContent = 'Saved game cleared. The current game continues; future moves will be saved again.';
+		return true;
+	}
+
+	persistCurrentGame() {
+		const saved = saveGameToStorage(this);
+		if (saved) {
+			if (this.clearSavedGameButton) this.clearSavedGameButton.hidden = false;
+			if (this.saveStatus) this.saveStatus.textContent = 'Game progress saved in this browser.';
+		}
+		return saved;
+	}
+
 	startNewGame() {
 		const hasProgress = !this.gameOver && ((this.moveHistory && this.moveHistory.length > 0) ||
 			Boolean(this.pendingPromotion || this.pendingHistoryMove) ||
@@ -935,6 +989,8 @@ class Game {
 		if (this.gameOver) return false;
 		this.gameOver = true;
 		clearGameSaveFromStorage();
+		if (this.clearSavedGameButton) this.clearSavedGameButton.hidden = true;
+		if (this.saveStatus) this.saveStatus.textContent = 'Game ended. Saved progress was cleared.';
 		this.playStatusSound('game-end');
 		if (this.clock && typeof this.clock.stop === 'function') this.clock.stop();
 		this.updateClockControls();
