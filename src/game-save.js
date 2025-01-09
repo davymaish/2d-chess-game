@@ -46,6 +46,9 @@ function validateGameSave(save) {
 
 	const state = save.state;
 	if (!GAME_SAVE_COLORS.has(state.turn)) errors.push('Turn must be white or black.');
+	if (state.fullmoveNumber !== undefined && (!Number.isSafeInteger(state.fullmoveNumber) || state.fullmoveNumber < 1)) {
+		errors.push('Full-move number must be a positive safe integer.');
+	}
 	if (!Array.isArray(state.pieces) || state.pieces.length < 2 || state.pieces.length > 32) {
 		errors.push('A save must contain between 2 and 32 pieces.');
 	}
@@ -164,11 +167,12 @@ function createGameSaveSnapshot(game, savedAt = new Date().toISOString()) {
 				};
 				if (typeof piece.ableToCastle === 'boolean') savedPiece.ableToCastle = piece.ableToCastle;
 				return savedPiece;
-			}) : game.pieces,
-			enPassantTarget: game.enPassantTarget ?? null,
-			enPassantPawn: game.enPassantPawn ? game.enPassantPawn.name : null,
-			halfmoveClock: game.halfmoveClock ?? 0,
-			moveHistory: Array.isArray(game.moveHistory) ? [...game.moveHistory] : game.moveHistory,
+				}) : game.pieces,
+				enPassantTarget: game.enPassantTarget ?? null,
+				enPassantPawn: game.enPassantPawn ? game.enPassantPawn.name : null,
+				halfmoveClock: game.halfmoveClock ?? 0,
+				fullmoveNumber: game.fullmoveNumber ?? Math.floor((Array.isArray(game.moveHistory) ? game.moveHistory.length : 0) / 2) + 1,
+				moveHistory: Array.isArray(game.moveHistory) ? [...game.moveHistory] : game.moveHistory,
 			positionCounts: game.positionCounts && typeof game.positionCounts.entries === 'function'
 				? Array.from(game.positionCounts.entries()) : game.positionCounts,
 			lastMove: game.lastMove ? [...game.lastMove] : null,

@@ -9,7 +9,7 @@ const context = vm.createContext({ TextEncoder });
 for (const file of ['src/game-save.js', 'src/game-persistence.js']) {
 	vm.runInContext(fs.readFileSync(path.join(root, file), 'utf8'), context, { filename: file });
 }
-const api = vm.runInContext('({ GAME_SAVE_STORAGE_KEY, saveGameToStorage, loadGameFromStorage, inspectGameSaveStorage, clearGameSaveFromStorage })', context);
+const api = vm.runInContext('({ GAME_SAVE_STORAGE_KEY, saveGameToStorage, loadGameFromStorage, inspectGameSaveStorage, clearGameSaveFromStorage, validateGameSave })', context);
 const positionKey = JSON.stringify(['white', 'black:king:85,white:king:15', 'white:-,black:-', null]);
 
 function makeGame() {
@@ -53,7 +53,20 @@ test('completed game state is serialized to the versioned local-save key and loa
 	assert.equal(restored.schema, '2d-chess-game');
 	assert.equal(restored.version, 1);
 	assert.equal(restored.state.pieces.length, 2);
+	assert.equal(restored.state.fullmoveNumber, 1);
 	assert.deepEqual(Array.from(restored.state.positionCounts[0]), [positionKey, 1]);
+});
+
+test('fullmove number survives save and load, with legacy saves remaining valid', () => {
+	const storage = makeStorage();
+	const current = makeGame();
+	current.fullmoveNumber = 42;
+	assert.equal(api.saveGameToStorage(current, storage), true);
+	assert.equal(api.loadGameFromStorage(storage).state.fullmoveNumber, 42);
+
+	const legacy = api.loadGameFromStorage(storage);
+	delete legacy.state.fullmoveNumber;
+	assert.equal(api.validateGameSave(legacy).length, 0);
 });
 
 test('load returns null for absent or malformed storage values without throwing', () => {
