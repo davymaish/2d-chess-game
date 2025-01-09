@@ -69,9 +69,11 @@ To use an existing Chromium installation instead of Playwright's downloaded brow
 
 `src/game-save.js` defines a version-1 JSON format for stable, in-progress games. It validates piece identities and positions, turn, castling flags, en-passant state, move history, half-move count, repetition counts, last-move squares, and optional clock state; malformed, oversized, unsupported-version, finished, or transitional saves are rejected. `src/game-persistence.js` stores the validated snapshot in browser storage after completed moves and reports whether a save is available, missing, corrupt, outdated, or inaccessible. Corrupt and unsupported snapshots are removed when possible and announced; inaccessible storage or quota errors produce a polite warning without interrupting the current game. Resuming restores the board, side to move, history, piece rights, repetition state, and optional clock. Clear Saved Game removes the stored copy without ending the current game; subsequent moves are saved again when storage is available.
 
-## FEN export
+## FEN import and export
 
 `Game.toFEN()` serializes the current board as Forsyth–Edwards Notation. It exports piece placement, active color, castling rights that remain available on the original king/rook squares, the en-passant target, and the half-move and full-move counters. The standalone `serializeGameToFEN(game)` helper can also be used by tools and tests; invalid board state or counters are rejected instead of producing malformed FEN.
+
+`parseGameFEN(fen)` parses the six standard FEN fields, and `Game.loadFEN(fen)` initializes the board, active side, move counters, castling flags, and en-passant state from a FEN string. A successful import resets the current move history and clock, clears undo/redo history, and saves the imported position when browser storage is available. Invalid or un-restorable input returns `false` without replacing the current board.
 
 ## Chess clock model
 
