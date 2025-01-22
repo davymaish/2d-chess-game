@@ -1222,19 +1222,33 @@ class Game {
 		return serializeGameToFEN(this);
 	}
 
+	reportFENLoadError(message) {
+		if (!this.gameStatus) return;
+		this.gameStatus.textContent = `FEN was not loaded. ${message}`;
+		if (this.gameStatus.classList) this.gameStatus.classList.remove('is-check');
+	}
+
 	loadFEN(fen) {
 		let position;
 		try {
 			position = parseGameFEN(fen);
 		}
-		catch {
+		catch (error) {
+			this.reportFENLoadError(error && error.message ? error.message : 'Check the six FEN fields and try again.');
+			return false;
+		}
+		if (position.halfmoveClock >= 100) {
+			this.reportFENLoadError('This position has reached the fifty-move draw threshold; load an earlier position to continue play.');
 			return false;
 		}
 		const enPassantPawnPosition = position.enPassantTarget === null ? null :
 			position.enPassantTarget + (position.turn === 'black' ? 10 : -10);
 		const enPassantPawn = enPassantPawnPosition === null ? null :
 			position.pieces.find(piece => piece.position === enPassantPawnPosition && piece.rank === 'pawn');
-		if (position.enPassantTarget !== null && !enPassantPawn) return false;
+		if (position.enPassantTarget !== null && !enPassantPawn) {
+			this.reportFENLoadError('The en-passant target must follow a valid two-square pawn advance.');
+			return false;
+		}
 		const save = {
 			schema: GAME_SAVE_SCHEMA,
 			version: GAME_SAVE_VERSION,
@@ -1253,7 +1267,10 @@ class Game {
 			},
 		};
 		const previousClock = this.clock;
-		if (!this.restoreSavedGame(save)) return false;
+		if (!this.restoreSavedGame(save)) {
+			this.reportFENLoadError('This position has more promoted pieces than the available board can restore.');
+			return false;
+		}
 		if (previousClock && typeof previousClock.stop === 'function') previousClock.stop();
 		this.clock = null;
 		this.gameOver = false;
