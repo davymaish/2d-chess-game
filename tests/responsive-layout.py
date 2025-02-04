@@ -243,6 +243,53 @@ async def main():
             fail_if(loaded_fen_state["turn"] != "Black's Turn", "Imported FEN active color did not update the board")
             fail_if(loaded_fen_state["pieceCount"] != 32, "Imported FEN did not restore all pieces")
             fail_if(loaded_fen_state["enPassantPawn"] != "whitePawn5", "Imported FEN did not link the en-passant pawn")
+
+            await page.set_viewport_size({"width": 320, "height": 568})
+            await page.locator(".fen-tools summary").click()
+            expanded_fen_panel = await page.evaluate("""() => ({
+                documentWidth: document.documentElement.scrollWidth,
+                panelRight: document.querySelector('.fen-tools').getBoundingClientRect().right,
+                viewportWidth: window.innerWidth,
+            })""")
+            fail_if(expanded_fen_panel["documentWidth"] > expanded_fen_panel["viewportWidth"] or
+                    expanded_fen_panel["panelRight"] > expanded_fen_panel["viewportWidth"],
+                    "Expanded FEN tools caused horizontal overflow on a 320-pixel phone")
+            await page.locator("#copy-fen").click()
+            await page.wait_for_function("document.querySelector('#game-status').textContent.toLowerCase().includes('fen')")
+            copied_fen_state = await page.evaluate("""() => ({
+                field: document.querySelector('#fen-input').value,
+                current: game.toFEN(),
+                status: document.querySelector('#game-status').textContent,
+                touchHeight: document.querySelector('#copy-fen').getBoundingClientRect().height,
+            })""")
+            fail_if(copied_fen_state["field"] != copied_fen_state["current"], "Copy control did not refresh the field with the current position")
+            fail_if(not any(message in copied_fen_state["status"] for message in ("copied to the clipboard", "ready in the field")),
+                    "Copy control did not announce clipboard or manual-copy feedback")
+            fail_if(copied_fen_state["touchHeight"] < 44, "FEN copy control is smaller than the mobile touch target")
+
+            await page.evaluate("window.confirm = message => { window.fenConfirmMessage = message; return false; }")
+            await page.locator("#fen-input").fill("not a FEN")
+            await page.locator("#load-fen").click()
+            cancelled_load = await page.evaluate("() => ({ before: game.toFEN(), message: window.fenConfirmMessage })")
+            fail_if(not cancelled_load["message"] or "replace the current position" not in cancelled_load["message"],
+                    "Replacing an existing game did not request informed confirmation")
+            fail_if(cancelled_load["before"] != fen_position, "Cancelling the FEN replacement changed the current position")
+
+            await page.evaluate("window.confirm = () => true")
+            await page.locator("#load-fen").click()
+            failed_control_load = await page.evaluate("""() => ({
+                fen: game.toFEN(),
+                status: document.querySelector('#game-status').textContent,
+            })""")
+            fail_if(failed_control_load["fen"] != fen_position, "Invalid FEN entered through the control replaced the current board")
+            fail_if("FEN was not loaded" not in failed_control_load["status"], "Invalid FEN control load did not announce the failure")
+
+            await page.locator("#fen-input").fill("rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 42")
+            await page.locator("#load-fen").click()
+            round_trip_field = await page.locator("#fen-input").input_value()
+            fail_if(round_trip_field != fen_position, "Valid FEN control load did not retain the canonical round-trip value")
+            successful_control_status = await page.locator("#game-status").text_content()
+            fail_if("FEN position loaded" not in successful_control_status, "Successful FEN control load did not announce completion")
             invalid_fen_result = await page.evaluate("""() => {
                 const before = game.toFEN();
                 const malformedAccepted = game.loadFEN('not a FEN');

@@ -11,6 +11,18 @@ vm.runInContext(fs.readFileSync(path.join(root, 'src/fen.js'), 'utf8'), context,
 const gameSource = fs.readFileSync(path.join(root, 'src/Game.js'), 'utf8').split('\nconst pieces = [')[0];
 vm.runInContext(gameSource, context, { filename: 'src/Game.js' });
 const Game = vm.runInContext('Game', context);
+const fenAPI = vm.runInContext('({ parseGameFEN, serializeGameToFEN })', context);
+
+test('FEN parser and serializer round-trip special rights, en-passant, promotions, and move counters', () => {
+	const positions = [
+		'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
+		'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 42',
+		'4k3/8/8/8/8/8/8/Q3K3 w - - 99 35',
+	];
+	for (const fen of positions) {
+		assert.equal(fenAPI.serializeGameToFEN(fenAPI.parseGameFEN(fen)), fen);
+	}
+});
 
 test('Game.toFEN delegates the live position to the FEN serializer', () => {
 	const game = Object.create(Game.prototype);
@@ -69,4 +81,23 @@ test('Game.loadFEN initializes parsed state and leaves the game unchanged on par
 	assert.equal(game.loadFEN('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 100 1'), false);
 	assert.equal(game.pieces, loadedPieces, 'a terminal fifty-move position does not replace the current game');
 	assert.match(game.gameStatus.textContent, /fifty-move draw threshold/i);
+});
+
+test('FEN control asks before replacing progress and leaves the position intact when cancelled', () => {
+	const initialFen = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
+	const currentFen = 'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1';
+	const game = Object.create(Game.prototype);
+	game.fenInput = { value: initialFen };
+	game.moveHistory = ['1. e4'];
+	game.undoStack = [{ move: 'e4' }];
+	game.toFEN = () => currentFen;
+	game.loadFEN = fen => { game.loadedFEN = fen; return true; };
+	let confirmation = '';
+	context.window = { confirm(message) { confirmation = message; return false; } };
+	assert.equal(game.loadFENFromControl(), false);
+	assert.match(confirmation, /replace the current position, move history, and clock state/i);
+	assert.equal(game.loadedFEN, undefined);
+	context.window.confirm = () => true;
+	assert.equal(game.loadFENFromControl(), true);
+	assert.equal(game.loadedFEN, initialFen);
 });
