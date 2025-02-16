@@ -38,6 +38,7 @@ class Game {
 		this.soundContext = null;
 		this.halfmoveClock = 0;
 		this.fullmoveNumber = 1;
+		this.resultToken = '*';
 		this.pendingCapture = false;
 		this.isCastlingRookMove = false;
 		this.positionCounts = new Map();
@@ -1046,13 +1047,16 @@ class Game {
 		if (!window.confirm('Resign this game? Your opponent will win.')) return false;
 		const resigningColor = this.turn;
 		const winner = resigningColor === 'white' ? 'Black' : 'White';
-		this.finishGame(`${resigningColor.charAt(0).toUpperCase() + resigningColor.slice(1)} resigns. ${winner} wins.`);
+		const resultToken = resigningColor === 'white' ? '0-1' : '1-0';
+		this.finishGame(`${resigningColor.charAt(0).toUpperCase() + resigningColor.slice(1)} resigns. ${winner} wins.`, resultToken);
 		return true;
 	}
 
-	finishGame(message) {
+	finishGame(message, resultToken = '*') {
 		if (this.gameOver) return false;
+		if (!['1-0', '0-1', '1/2-1/2', '*'].includes(resultToken)) throw new TypeError('Invalid PGN result token.');
 		this.gameOver = true;
+		this.resultToken = resultToken;
 		clearGameSaveFromStorage();
 		if (this.clearSavedGameButton) this.clearSavedGameButton.hidden = true;
 		if (this.saveStatus) this.saveStatus.textContent = 'Game ended. Saved progress was cleared.';
@@ -1088,10 +1092,12 @@ class Game {
 		if (this.gameOver || !['white', 'black'].includes(flaggedColor)) return false;
 		const winner = flaggedColor === 'white' ? 'black' : 'white';
 		const capitalize = color => color.charAt(0).toUpperCase() + color.slice(1);
-		const message = this.hasMatingMaterial(winner)
+		const hasMatingMaterial = this.hasMatingMaterial(winner);
+		const message = hasMatingMaterial
 			? `${capitalize(flaggedColor)} ran out of time. ${capitalize(winner)} wins.`
 			: `${capitalize(flaggedColor)} ran out of time. Draw — ${capitalize(winner)} cannot checkmate.`;
-		return this.finishGame(message);
+		const resultToken = hasMatingMaterial ? (winner === 'white' ? '1-0' : '0-1') : '1/2-1/2';
+		return this.finishGame(message, resultToken);
 	}
 
 	myKingChecked(pos, kill=true, capturedPiece=null){
@@ -1271,6 +1277,10 @@ class Game {
 		return serializeGameToFEN(this);
 	}
 
+	toPGN(headers = {}) {
+		return serializeGameToPGN(this, headers);
+	}
+
 	reportFENLoadError(message) {
 		if (!this.gameStatus) return;
 		this.gameStatus.textContent = `FEN was not loaded. ${message}`;
@@ -1323,6 +1333,7 @@ class Game {
 		if (previousClock && typeof previousClock.stop === 'function') previousClock.stop();
 		this.clock = null;
 		this.gameOver = false;
+		this.resultToken = '*';
 		if (this.promotionDialog && this.promotionDialog.open) this.promotionDialog.close();
 		const endScene = document.getElementById('endscene');
 		if (endScene && endScene.classList) endScene.classList.remove('show');
@@ -1409,23 +1420,23 @@ class Game {
 
 	checkmate(color){
 		const winner = color.charAt(0).toUpperCase() + color.slice(1);
-		this.finishGame('Checkmate. ' + winner + ' wins.');
+		this.finishGame('Checkmate. ' + winner + ' wins.', color === 'white' ? '1-0' : '0-1');
 	}
 
 	stalemate() {
-		this.finishGame('Draw by stalemate.');
+		this.finishGame('Draw by stalemate.', '1/2-1/2');
 	}
 
 	drawByInsufficientMaterial() {
-		this.finishGame('Draw by insufficient material.');
+		this.finishGame('Draw by insufficient material.', '1/2-1/2');
 	}
 
 	drawByFiftyMoveRule() {
-		this.finishGame('Draw by the fifty-move rule.');
+		this.finishGame('Draw by the fifty-move rule.', '1/2-1/2');
 	}
 
 	drawByThreefoldRepetition() {
-		this.finishGame('Draw by threefold repetition.');
+		this.finishGame('Draw by threefold repetition.', '1/2-1/2');
 	}
 }
 
