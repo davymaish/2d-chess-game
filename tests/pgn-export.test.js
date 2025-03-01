@@ -77,6 +77,25 @@ test('PGN export preserves a black-to-move FEN fullmove number and wraps long mo
 	assert.ok(longMovetext.endsWith(' *'));
 });
 
+test('PGN movetext preserves formatted SAN for captures, disambiguation, castling, promotion, check, and mate', () => {
+	const game = Object.create(Game.prototype);
+	const moves = [
+		{ color: 'white', move: { rank: 'pawn', from: 55, to: 64, isCapture: true } },
+		{ color: 'black', move: { rank: 'knight', from: 22, to: 43, isCapture: false, disambiguation: 'b' } },
+		{ color: 'white', move: { rank: 'king', from: 15, to: 17, isCapture: false } },
+		{ color: 'black', move: { rank: 'king', from: 85, to: 83, isCapture: false } },
+		{ color: 'white', move: { rank: 'pawn', from: 77, to: 88, isCapture: true, promotion: 'queen', checkSuffix: '+' } },
+		{ color: 'black', move: { rank: 'queen', from: 84, to: 48, isCapture: false, checkSuffix: '#' } },
+	];
+	game.moveHistory = moves.map((entry, index) => {
+		const moveNumber = Math.floor(index / 2) + 1;
+		const turn = entry.color === 'black' ? `${moveNumber}...` : `${moveNumber}.`;
+		return `${turn} ${game.formatMove(entry.move)}`;
+	});
+	game.resultToken = '0-1';
+	assert.ok(game.toPGN().endsWith('\n\n1. exd6 Nbc4 2. O-O O-O-O 3. gxh8=Q+ Qh4# 0-1'));
+});
+
 test('PGN header values are escaped and extra tag pairs follow the standard roster', () => {
 	const output = pgnAPI.serializeGameToPGN(pgnGame(), {
 		White: 'Ada "Ace" \\ Player',
@@ -89,6 +108,7 @@ test('PGN header values are escaped and extra tag pairs follow the standard rost
 
 test('PGN export rejects malformed move history, result tokens, and header values', () => {
 	assert.throws(() => pgnAPI.serializeGameToPGN(pgnGame(['e4'])), /numbered SAN notation/i);
+	assert.throws(() => pgnAPI.serializeGameToPGN(pgnGame(['1. e2e4'])), /invalid SAN token/i);
 	assert.throws(() => pgnAPI.serializeGameToPGN(pgnGame(['1. e4', '2... e5'])), /does not follow/i);
 	assert.throws(() => pgnAPI.serializeGameToPGN(pgnGame([], 'win')), /PGN result/i);
 	assert.throws(() => pgnAPI.serializeGameToPGN(pgnGame(), { Site: 3 }), /must be a string/i);

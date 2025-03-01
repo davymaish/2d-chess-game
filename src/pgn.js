@@ -1,5 +1,6 @@
 const PGN_STANDARD_HEADERS = ['Event', 'Site', 'Date', 'Round', 'White', 'Black', 'Result'];
 const PGN_VALID_RESULTS = ['1-0', '0-1', '1/2-1/2', '*'];
+const PGN_SAN_TOKEN = /^(?:O-O(?:-O)?|[KQRBN](?:(?:[a-h][1-8]?)|[1-8])?x?[a-h][1-8]|(?:[a-h]x[a-h][1-8]|[a-h][1-8])(?:=[QRBN])?)(?:[+#])?$/;
 const PGN_DEFAULT_HEADERS = {
 	Event: 'Casual Game',
 	Site: 'Local',
@@ -15,6 +16,7 @@ function parsePGNHistoryMove(notation, index) {
 	if (!match) throw new TypeError(`PGN move ${index + 1} must use numbered SAN notation.`);
 	const number = Number(match[1]);
 	if (!Number.isSafeInteger(number) || number < 1) throw new TypeError(`PGN move ${index + 1} has an invalid move number.`);
+	if (!PGN_SAN_TOKEN.test(match[3])) throw new TypeError(`PGN move ${index + 1} contains an invalid SAN token.`);
 	return { number, color: match[2] ? 'black' : 'white', san: match[3] };
 }
 
