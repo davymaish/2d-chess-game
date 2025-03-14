@@ -83,3 +83,79 @@ function serializeGameToPGN(game, headers = {}) {
 	tokens.push(result);
 	return `${tags.join('\n')}\n\n${wrapPGNMovetext(tokens)}`;
 }
+
+function parseGamePGN(pgn) {
+	if (typeof pgn !== 'string') throw new TypeError('PGN input must be a string.');
+	const lines = pgn.replace(/^\uFEFF/, '').split(/\r?\n/);
+	const headers = {};
+	let lineIndex = 0;
+	while (lineIndex < lines.length && lines[lineIndex].trim() === '') lineIndex++;
+	while (lineIndex < lines.length && lines[lineIndex].trim().startsWith('[')) {
+		const line = lines[lineIndex].trim();
+		const match = /^\[([A-Za-z][A-Za-z0-9_]*)\s+"((?:\\.|[^"\\])*)"\]$/.exec(line);
+		if (!match) throw new TypeError(`Invalid PGN tag pair on line ${lineIndex + 1}.`);
+		const [, tag, rawValue] = match;
+		if (Object.hasOwn(headers, tag)) throw new TypeError(`Duplicate PGN header: ${tag}.`);
+		if (/\\(?!["\\])/.test(rawValue)) throw new TypeError(`Invalid escape in PGN header ${tag}.`);
+		headers[tag] = rawValue.replace(/\\(["\\])/g, '$1');
+		lineIndex++;
+	}
+	if (headers.Result !== undefined && !PGN_VALID_RESULTS.includes(headers.Result)) {
+		throw new TypeError('PGN Result header must be 1-0, 0-1, 1/2-1/2, or *.');
+	}
+
+	const rawMovetext = lines.slice(lineIndex).join('\n');
+	if (/[{};()$!?]/.test(rawMovetext)) throw new TypeError('PGN comments, variations, NAGs, and annotations are not supported by the basic parser.');
+	const movetext = rawMovetext.replace(/(\d+\.(?:\.\.)?)(?=\S)/g, '$1 ').trim();
+	const tokens = movetext ? movetext.split(/\s+/) : [];
+	let expectedNumber = 1;
+	let expectedColor = 'white';
+	if (headers.FEN !== undefined) {
+		const fenFields = headers.FEN.trim().split(/\s+/);
+		if (fenFields.length !== 6 || !['w', 'b'].includes(fenFields[1]) || !/^[1-9]\d*$/.test(fenFields[5])) {
+			throw new TypeError('PGN FEN header must contain a valid active color and fullmove number.');
+		}
+		expectedColor = fenFields[1] === 'b' ? 'black' : 'white';
+		expectedNumber = Number(fenFields[5]);
+		if (!Number.isSafeInteger(expectedNumber)) throw new TypeError('PGN FEN fullmove number is out of range.');
+	}
+
+	const moves = [];
+	let moveMarker = null;
+	let result = null;
+	for (const token of tokens) {
+		if (result) throw new TypeError('PGN movetext cannot contain tokens after the result marker.');
+		const markerMatch = /^(\d+)\.(\.\.)?$/.exec(token);
+		if (markerMatch) {
+			if (moveMarker) throw new TypeError('PGN contains a move number without a SAN move.');
+			const number = Number(markerMatch[1]);
+			const color = markerMatch[2] ? 'black' : 'white';
+			if (!Number.isSafeInteger(number) || number !== expectedNumber || color !== expectedColor) {
+				throw new TypeError('PGN move number and color do not follow the previous move.');
+			}
+			moveMarker = { number, color };
+			continue;
+		}
+		if (PGN_VALID_RESULTS.includes(token)) {
+			result = token;
+			continue;
+		}
+		if (!PGN_SAN_TOKEN.test(token)) throw new TypeError(`Invalid SAN token in PGN movetext: ${token}`);
+		const move = moveMarker || { number: expectedNumber, color: expectedColor };
+		if (move.number !== expectedNumber || move.color !== expectedColor) {
+			throw new TypeError('PGN move number and color do not follow the previous move.');
+		}
+		moves.push(`${move.number}${move.color === 'black' ? '...' : '.'} ${token}`);
+		moveMarker = null;
+		if (expectedColor === 'white') expectedColor = 'black';
+		else {
+			expectedColor = 'white';
+			expectedNumber++;
+		}
+	}
+	if (moveMarker) throw new TypeError('PGN ends with a move number but no SAN move.');
+	if (headers.Result !== undefined && result !== null && headers.Result !== result) {
+		throw new TypeError('PGN Result header does not match the movetext result.');
+	}
+	return { headers, moves, result: result || headers.Result || '*' };
+}
