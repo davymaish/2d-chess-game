@@ -82,7 +82,7 @@ Use the collapsible **FEN tools** panel to copy the current position or paste a 
 
 `Game.toPGN()` exports the current SAN move history in PGN movetext with the standard Event, Site, Date, Round, White, Black, and Result tags. `serializeGameToPGN(game, headers)` is available for tools and tests; optional header values can supply event, site, date, round, and player names. Unknown date and round values use PGN placeholders. Header values are escaped, move numbers are preserved (including games begun from a black-to-move FEN), and long movetext wraps at 80 columns. SAN tokens are checked during serialization, preserving captures, disambiguation, castling, promotion, check, and checkmate notation. An unfinished game ends with `*`; checkmate, resignation, and timeout produce the winning side's token when applicable, and draws produce `1/2-1/2`.
 
-`parseGamePGN(pgn)` reads one game and returns its decoded `headers`, normalized numbered SAN `moves`, and `result` for replay or import callers. The basic parser validates SAN token shape and move-number/color sequencing; annotated movetext is not yet supported.
+`parseGamePGN(pgn)` reads one game and returns its decoded `headers`, normalized numbered SAN `moves`, and `result` for replay or import callers. It validates SAN token shape, move-number/color sequencing, and header/result consistency; brace and semicolon comments, nested side variations, numeric NAGs, and symbolic move annotations are removed while the main line is retained. Malformed comments, variations, results, or unsupported movetext tokens return a descriptive error.
 
 ## Chess clock model
 
