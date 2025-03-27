@@ -69,12 +69,23 @@ test('PGN parser starts from a black-to-move FEN fullmove number', () => {
 	assert.deepEqual(JSON.parse(JSON.stringify(parsed.moves)), ['42... e5', '43. Nf3']);
 });
 
-test('PGN parser rejects malformed tags, invalid SAN, inconsistent numbering, and unsupported annotations', () => {
+test('PGN parser ignores comments, annotations, NAGs, and side variations while preserving the main line', () => {
+	const parsed = pgnAPI.parseGamePGN('1. e4! {King\'s pawn} e5\n2. Nf3 $1 Nc6 ; ignored tail\n3. Bb5!? (3. Bc4 Nf6 (3... Bc5)) 3...a6 1/2-1/2');
+	assert.deepEqual(JSON.parse(JSON.stringify(parsed.moves)), [
+		'1. e4', '1... e5', '2. Nf3', '2... Nc6', '3. Bb5', '3... a6',
+	]);
+	assert.equal(parsed.result, '1/2-1/2');
+});
+
+test('PGN parser rejects malformed tags, invalid SAN, numbering, results, and unsupported tokens predictably', () => {
 	assert.throws(() => pgnAPI.parseGamePGN('[Event Bad]\n\n1. e4 *'), /Invalid PGN tag pair/i);
 	assert.throws(() => pgnAPI.parseGamePGN('1. e2e4 *'), /Invalid SAN token/i);
 	assert.throws(() => pgnAPI.parseGamePGN('1. e4 2... e5 *'), /do not follow/i);
 	assert.throws(() => pgnAPI.parseGamePGN('[Result "1-0"]\n\n1. e4 0-1'), /does not match/i);
-	assert.throws(() => pgnAPI.parseGamePGN('1. e4 {comment} *'), /not supported/i);
+	assert.throws(() => pgnAPI.parseGamePGN('1. e4 xyz *'), /Invalid SAN token/i);
+	assert.throws(() => pgnAPI.parseGamePGN('1. e4 {unfinished *'), /unterminated brace comment/i);
+	assert.throws(() => pgnAPI.parseGamePGN('1. e4 (1. d4 *'), /unterminated variation/i);
+	assert.throws(() => pgnAPI.parseGamePGN('1. e4 * extra'), /after the result/i);
 });
 
 test('PGN export emits the standard tag roster and unfinished result marker', () => {
