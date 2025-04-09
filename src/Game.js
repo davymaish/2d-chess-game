@@ -53,6 +53,7 @@ class Game {
 		this.addHistoryControls();
 		this.addGameControls();
 		this.addFENControls();
+		this.addPGNControls();
 		this.addClockControls();
 		this.addSoundControls();
 		this.whiteSematary = document.getElementById('whiteSematary');
@@ -925,6 +926,63 @@ class Game {
 		if (this.fenInput) this.fenInput.value = this.toFEN();
 		if (this.copyFENButton) this.copyFENButton.addEventListener('click', () => this.copyCurrentFEN());
 		if (this.loadFENButton) this.loadFENButton.addEventListener('click', () => this.loadFENFromControl());
+	}
+
+	addPGNControls() {
+		this.pgnInput = document.getElementById('pgn-input');
+		this.exportPGNButton = document.getElementById('export-pgn');
+		this.importPGNButton = document.getElementById('import-pgn');
+		this.pgnStatus = document.getElementById('pgn-status');
+		this.pgnPreview = document.getElementById('pgn-preview');
+		if (this.exportPGNButton) this.exportPGNButton.addEventListener('click', () => this.exportPGNToControl());
+		if (this.importPGNButton) this.importPGNButton.addEventListener('click', () => this.importPGNFromControl());
+	}
+
+	exportPGNToControl() {
+		if (!this.pgnInput) return false;
+		try {
+			this.pgnInput.value = this.toPGN();
+			this.clearPGNPreview();
+			if (this.pgnStatus) this.pgnStatus.textContent = 'Current game exported to the PGN field.';
+			return true;
+		}
+		catch (error) {
+			if (this.pgnStatus) this.pgnStatus.textContent = `PGN export failed. ${error.message}`;
+			return false;
+		}
+	}
+
+	importPGNFromControl() {
+		if (!this.pgnInput) return false;
+		if (!this.pgnInput.value.trim()) {
+			this.importedPGN = null;
+			this.clearPGNPreview();
+			if (this.pgnStatus) this.pgnStatus.textContent = 'Enter or paste a PGN game before importing.';
+			return false;
+		}
+		try {
+			this.importedPGN = parseGamePGN(this.pgnInput.value);
+			const moveCount = this.importedPGN.moves.length;
+			if (this.pgnPreview) {
+				const headers = Object.entries(this.importedPGN.headers).map(([tag, value]) => `${tag}: ${value}`);
+				this.pgnPreview.textContent = [...headers, '', ...this.importedPGN.moves, '', `Result: ${this.importedPGN.result}`].join('\n');
+				this.pgnPreview.hidden = false;
+			}
+			if (this.pgnStatus) this.pgnStatus.textContent = `PGN preview loaded: ${moveCount} ${moveCount === 1 ? 'move' : 'moves'}, result ${this.importedPGN.result}. The active board was not changed.`;
+			return this.importedPGN;
+		}
+		catch (error) {
+			this.importedPGN = null;
+			this.clearPGNPreview();
+			if (this.pgnStatus) this.pgnStatus.textContent = `PGN import failed. ${error.message}`;
+			return false;
+		}
+	}
+
+	clearPGNPreview() {
+		if (!this.pgnPreview) return;
+		this.pgnPreview.textContent = '';
+		this.pgnPreview.hidden = true;
 	}
 
 	async copyCurrentFEN() {

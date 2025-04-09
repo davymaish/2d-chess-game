@@ -214,6 +214,18 @@
 							<button id="load-fen" type="button">Load FEN</button>
 						</div>
 					</details>
+					<details class="pgn-tools">
+						<summary>PGN import and export</summary>
+						<label for="pgn-input">PGN game text</label>
+						<textarea id="pgn-input" rows="8" maxlength="100000" spellcheck="false" aria-describedby="pgn-help pgn-status"></textarea>
+						<div class="pgn-actions">
+							<button id="export-pgn" type="button">Export current game</button>
+							<button id="import-pgn" type="button">Import PGN preview</button>
+						</div>
+						<p id="pgn-help">Import validates and previews the PGN without changing the live board.</p>
+						<p id="pgn-status" role="status" aria-live="polite" aria-atomic="true"></p>
+						<pre id="pgn-preview" class="pgn-preview" aria-label="Imported PGN preview" hidden></pre>
+					</details>
 				<p id="selection-status" class="visually-hidden" role="status" aria-live="polite" aria-atomic="true">Select a piece to hear its legal destinations.</p>
 				<label class="sound-setting"><input id="move-sounds" type="checkbox"> Move and capture sounds</label>
 				<p id="sound-status" class="visually-hidden" role="status" aria-live="polite" aria-atomic="true">Move sounds are off.</p>

@@ -241,7 +241,8 @@ button:focus-visible,
 select:focus-visible,
 input:focus-visible,
 textarea:focus-visible,
-.fen-tools summary:focus-visible {
+.fen-tools summary:focus-visible,
+.pgn-tools summary:focus-visible {
 	outline: 3px solid #00695c;
 	outline-offset: 2px;
 }
@@ -282,7 +283,8 @@ textarea:focus-visible,
 .game-status.is-check {
 	color: #b71c1c;
 }
-.fen-tools {
+.fen-tools,
+.pgn-tools {
 	flex: 1 1 100%;
 	width: min(100%, 32rem);
 	max-width: 100%;
@@ -294,18 +296,21 @@ textarea:focus-visible,
 	color: #263238;
 	box-sizing: border-box;
 }
-.fen-tools summary {
+.fen-tools summary,
+.pgn-tools summary {
 	min-height: 2.75rem;
 	padding: 0.55rem 0;
 	font-weight: 700;
 	cursor: pointer;
 }
-.fen-tools label {
+.fen-tools label,
+.pgn-tools label {
 	display: block;
 	margin: 0.35rem 0;
 	font-weight: 600;
 }
-.fen-tools textarea {
+.fen-tools textarea,
+.pgn-tools textarea {
 	display: block;
 	width: 100%;
 	min-height: 4.5rem;
@@ -318,13 +323,15 @@ textarea:focus-visible,
 	font: 0.9rem/1.45 ui-monospace, SFMono-Regular, Consolas, monospace;
 	resize: vertical;
 }
-.fen-actions {
+.fen-actions,
+.pgn-actions {
 	display: flex;
 	flex-wrap: wrap;
 	gap: 0.5rem;
 	margin-top: 0.55rem;
 }
-.fen-actions button {
+.fen-actions button,
+.pgn-actions button {
 	min-height: 2.75rem;
 	padding: 0.5rem 0.75rem;
 	border: 1px solid #52666d;
@@ -333,6 +340,19 @@ textarea:focus-visible,
 	color: #fff;
 	font: inherit;
 	cursor: pointer;
+}
+.pgn-preview {
+	max-height: 14rem;
+	overflow: auto;
+	margin: 0.65rem 0 0;
+	padding: 0.65rem;
+	border: 1px solid #aab2b5;
+	border-radius: 0.25rem;
+	background: #fff;
+	color: #172126;
+	white-space: pre-wrap;
+	overflow-wrap: anywhere;
+	font: 0.85rem/1.4 ui-monospace, SFMono-Regular, Consolas, monospace;
 }
 .sound-setting {
 	display: flex;
@@ -606,7 +626,8 @@ textarea:focus-visible,
 		min-width: 44px;
 		min-height: 44px;
 	}
-	.fen-actions button {
+	.fen-actions button,
+	.pgn-actions button {
 		flex: 1 1 9rem;
 		min-height: 44px;
 	}
@@ -821,7 +842,8 @@ textarea:focus-visible,
 	select:focus-visible,
 	input:focus-visible,
 	textarea:focus-visible,
-	.fen-tools summary:focus-visible {
+	.fen-tools summary:focus-visible,
+	.pgn-tools summary:focus-visible {
 		outline-color: Highlight;
 	}
 }
