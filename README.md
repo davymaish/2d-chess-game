@@ -27,6 +27,7 @@ _The game in action._
 - Resignation with confirmation, an announced result, locked terminal controls, and a restart action
 - Automatically saves stable in-progress games after completed moves; after refresh, choose Resume Saved Game or Start New Game, and clear the saved copy while continuing a resumed game; corrupt or unsupported snapshots are discarded with an accessible notice, while blocked storage never prevents play
 - Collapsible FEN tools copy the current position to the clipboard (or a selectable field) and load valid positions with confirmation before replacing game progress
+- PGN tools export the current game and validate/display pasted games in a text preview without changing the active board
 
 ## Installation
 
@@ -83,6 +84,8 @@ Use the collapsible **FEN tools** panel to copy the current position or paste a 
 `Game.toPGN()` exports the current SAN move history in PGN movetext with the standard Event, Site, Date, Round, White, Black, and Result tags. `serializeGameToPGN(game, headers)` is available for tools and tests; optional header values can supply event, site, date, round, and player names. Unknown date and round values use PGN placeholders. Header values are escaped, move numbers are preserved (including games begun from a black-to-move FEN), and long movetext wraps at 80 columns. SAN tokens are checked during serialization, preserving captures, disambiguation, castling, promotion, check, and checkmate notation. An unfinished game ends with `*`; checkmate, resignation, and timeout produce the winning side's token when applicable, and draws produce `1/2-1/2`.
 
 `parseGamePGN(pgn)` reads one game and returns its decoded `headers`, normalized numbered SAN `moves`, and `result` for replay or import callers. It validates SAN token shape, move-number/color sequencing, and header/result consistency; brace and semicolon comments, nested side variations, numeric NAGs, and symbolic move annotations are removed while the main line is retained. Malformed comments, variations, results, or unsupported movetext tokens return a descriptive error.
+
+Open **PGN import and export** to place the current game’s PGN in the text field or validate a pasted PGN for preview. Import stores the parsed headers, moves, and result for later replay; it explicitly leaves the active board unchanged.
 
 ## Chess clock model
 
