@@ -88,6 +88,56 @@ test('PGN parser rejects malformed tags, invalid SAN, numbering, results, and un
 	assert.throws(() => pgnAPI.parseGamePGN('1. e4 * extra'), /after the result/i);
 });
 
+test('PGN parser and serializer round-trip special SAN and every supported game result', () => {
+	const moves = ['1. exd6', '1... Nbc4', '2. O-O', '2... O-O-O', '3. gxh8=Q+', '3... Qh4#'];
+	for (const result of ['1-0', '0-1', '1/2-1/2', '*']) {
+		const text = pgnAPI.serializeGameToPGN(pgnGame(moves, result), { Event: 'Notation fixture' });
+		const imported = JSON.parse(JSON.stringify(pgnAPI.parseGamePGN(text)));
+		assert.deepEqual(imported.moves, moves);
+		assert.equal(imported.result, result);
+		assert.equal(imported.headers.Event, 'Notation fixture');
+	}
+});
+
+test('PGN controls export the active game and preview imported text without changing the board', () => {
+	const createControl = value => ({
+		value,
+		listeners: {},
+		addEventListener(type, listener) { this.listeners[type] = listener; },
+		click() { this.listeners.click(); },
+	});
+	const controls = {
+		'pgn-input': createControl(''),
+		'export-pgn': createControl(''),
+		'import-pgn': createControl(''),
+		'pgn-status': { textContent: '' },
+		'pgn-preview': { textContent: '', hidden: true },
+	};
+	const originalGetElementById = context.document.getElementById;
+	context.document.getElementById = id => controls[id] || null;
+	const game = Object.create(Game.prototype);
+	Object.assign(game, { moveHistory: ['1. e4'], resultToken: '*', turn: 'white' });
+	try {
+		game.addPGNControls();
+		controls['export-pgn'].click();
+		assert.match(controls['pgn-input'].value, /1\. e4 \*$/);
+		controls['pgn-input'].value = '[Event "Imported"]\n\n1. d4 d5 *';
+		controls['import-pgn'].click();
+		assert.deepEqual(JSON.parse(JSON.stringify(game.importedPGN.moves)), ['1. d4', '1... d5']);
+		assert.equal(game.turn, 'white');
+		assert.equal(controls['pgn-preview'].hidden, false);
+		assert.match(controls['pgn-preview'].textContent, /1\. d4\n1\.\.\. d5/);
+		assert.match(controls['pgn-status'].textContent, /active board was not changed/i);
+		controls['pgn-input'].value = '1. e2e4 *';
+		assert.equal(game.importPGNFromControl(), false);
+		assert.match(controls['pgn-status'].textContent, /PGN import failed/i);
+		assert.equal(controls['pgn-preview'].hidden, true);
+	}
+	finally {
+		context.document.getElementById = originalGetElementById;
+	}
+});
+
 test('PGN export emits the standard tag roster and unfinished result marker', () => {
 	const pgn = pgnAPI.serializeGameToPGN(pgnGame());
 	assert.equal(pgn, [...expectedHeaders, '[Result "*"]', '', '*'].join('\n'));
