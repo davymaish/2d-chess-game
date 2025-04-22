@@ -17,6 +17,7 @@ class Game {
 		this.moveList = document.getElementById('move-list');
 		this.emptyMoveHistory = document.getElementById('move-history-empty');
 		this.moveHistory = [];
+		this.replayCursor = typeof ReplayCursor === 'undefined' ? null : new ReplayCursor(this.moveHistory);
 		this.pendingHistoryMove = null;
 		this.undoStack = [];
 		this.redoStack = [];
@@ -664,6 +665,7 @@ class Game {
 		const turnLabel = move.color === 'black' ? `${moveNumber}...` : `${moveNumber}.`;
 		const notation = `${turnLabel} ${this.formatMove(move)}`;
 		this.moveHistory.push(notation);
+		this.syncReplayCursor();
 		this.fullmoveNumber = move.color === 'black' ? moveNumber + 1 : moveNumber;
 		if (!this.moveList) return;
 		const item = document.createElement('div');
@@ -671,6 +673,27 @@ class Game {
 		this.moveList.appendChild(item);
 		this.moveList.scrollTop = this.moveList.scrollHeight;
 		if (this.emptyMoveHistory) this.emptyMoveHistory.hidden = true;
+	}
+
+	syncReplayCursor() {
+		if (typeof ReplayCursor === 'undefined') return { index: -1, totalMoves: this.moveHistory.length, currentMove: null, atStart: true, atEnd: this.moveHistory.length === 0 };
+		const currentIndex = this.replayCursor ? this.replayCursor.index : -1;
+		this.replayCursor = new ReplayCursor(this.moveHistory || []);
+		if (currentIndex >= 0 && currentIndex < this.replayCursor.moves.length) this.replayCursor.seek(currentIndex);
+		return this.replayCursor.getState();
+	}
+
+	getReplayState() {
+		if (typeof ReplayCursor === 'undefined') return { index: -1, totalMoves: (this.moveHistory || []).length, currentMove: null, atStart: true, atEnd: !(this.moveHistory || []).length };
+		return (this.replayCursor || (this.replayCursor = new ReplayCursor(this.moveHistory || []))).getState();
+	}
+
+	stepReplay(direction) {
+		if (typeof ReplayCursor === 'undefined') return false;
+		const cursor = this.replayCursor || (this.replayCursor = new ReplayCursor(this.moveHistory || []));
+		if (direction === 'next') return cursor.next();
+		if (direction === 'previous') return cursor.previous();
+		return false;
 	}
 
 	recordHalfmove(piece, isCapture) {
@@ -836,6 +859,7 @@ class Game {
 		this.enPassantPawn = state.enPassantPawn;
 		this.positionCounts = new Map(state.positionCounts);
 		this.moveHistory = [...state.moveHistory];
+		this.syncReplayCursor();
 			this.lastMove = state.lastMove ? [...state.lastMove] : null;
 			if (this.turnSign) this.turnSign.innerHTML = this.turn === 'white' ? "White's Turn" : "Black's Turn";
 			this.updateBoardAccessibleNames();
@@ -1261,6 +1285,7 @@ class Game {
 		this.halfmoveClock = state.halfmoveClock;
 		this.fullmoveNumber = state.fullmoveNumber ?? Math.floor(state.moveHistory.length / 2) + 1;
 		this.moveHistory = [...state.moveHistory];
+		this.syncReplayCursor();
 		this.positionCounts = new Map(state.positionCounts);
 		this.lastMove = state.lastMove ? [...state.lastMove] : null;
 		if (this.turnSign) this.turnSign.textContent = this.turn === 'white' ? "White's Turn" : "Black's Turn";
