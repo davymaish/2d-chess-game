@@ -252,11 +252,18 @@
 		</section>
 		<section class="move-history" aria-labelledby="move-history-title">
 			<h2 id="move-history-title">Move history</h2>
-			<div class="history-controls" role="group" aria-label="Move history controls">
-				<button id="undo-move" type="button" aria-label="Undo last move" title="Undo (Ctrl/Cmd+Z)" disabled>Undo</button>
-				<button id="redo-move" type="button" aria-label="Redo last undone move" title="Redo (Ctrl/Cmd+Y or Ctrl/Cmd+Shift+Z)" disabled>Redo</button>
-			</div>
-			<div id="move-list" class="move-list" role="log" aria-label="Moves played" aria-live="polite" aria-relevant="additions"></div>
+				<div class="history-controls" role="group" aria-label="Move history controls">
+					<button id="undo-move" type="button" aria-label="Undo last move" title="Undo (Ctrl/Cmd+Z)" disabled>Undo</button>
+					<button id="redo-move" type="button" aria-label="Redo last undone move" title="Redo (Ctrl/Cmd+Y or Ctrl/Cmd+Shift+Z)" disabled>Redo</button>
+				</div>
+				<div class="history-controls replay-controls" role="group" aria-label="Replay navigation">
+					<button id="replay-first" type="button" aria-label="Go to the position before the first move" disabled>First</button>
+					<button id="replay-previous" type="button" aria-label="Show previous move" disabled>Previous</button>
+					<button id="replay-next" type="button" aria-label="Show next move" disabled>Next</button>
+					<button id="replay-last" type="button" aria-label="Go to the last move" disabled>Last</button>
+				</div>
+				<p id="replay-position" role="status" aria-live="polite" aria-atomic="true">Replay position: before the first move.</p>
+				<div id="move-list" class="move-list" role="log" aria-label="Moves played" aria-live="polite" aria-relevant="additions"></div>
 			<p id="move-history-empty">Moves will appear here.</p>
 		</section>
 
