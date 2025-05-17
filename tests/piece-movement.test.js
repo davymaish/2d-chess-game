@@ -27,7 +27,7 @@ for (const file of [
   });
 }
 
-for (const file of ['src/game-save.js', 'src/game-persistence.js']) {
+for (const file of ['src/game-save.js', 'src/game-persistence.js', 'src/replay-cursor.js']) {
   vm.runInContext(fs.readFileSync(path.join(root, file), 'utf8'), context, { filename: file });
 }
 
@@ -1882,10 +1882,20 @@ test('undo and redo restore a captured piece identity, board square, and graveya
   whiteRook.img.parentNode = squares.get(21);
 
   const originalGetElementById = context.document.getElementById;
+  const originalCreateElement = context.document.createElement;
   context.document.getElementById = id => squares.get(Number(id)) || { id };
   game.turn = 'white';
   game.turnSign = { innerHTML: '' };
-  game.moveList = null;
+  const renderedMoves = [];
+  game.moveList = {
+    _text: '',
+    get textContent() { return this._text; },
+    set textContent(value) { this._text = value; if (value === '') renderedMoves.length = 0; },
+    appendChild(item) { renderedMoves.push(item.textContent); },
+    scrollHeight: 0,
+    scrollTop: 0,
+  };
+  context.document.createElement = () => ({ textContent: '' });
   game.emptyMoveHistory = { hidden: false };
   game.moveHistory = [];
   game.halfmoveClock = 0;
@@ -1894,6 +1904,8 @@ test('undo and redo restore a captured piece identity, board square, and graveya
   game.redoStack = [];
   game.pendingUndoEntry = null;
   game.pendingCaptureState = null;
+  let persistCalls = 0;
+  game.persistCurrentGame = () => { persistCalls += 1; };
   game.whiteSematary = whiteSematary;
   game.blackSematary = blackSematary;
   game.getMoveDisambiguation = () => '';
@@ -1923,9 +1935,32 @@ test('undo and redo restore a captured piece identity, board square, and graveya
     assert.equal(capturedPawn.img.parentNode, capturedSlot);
     assert.equal(whiteRook.position, 24);
     assert.equal(game.turn, 'black');
+
+    const savesBeforeReplay = persistCalls;
+    assert.equal(game.replaySnapshots.size, 2);
+    assert.equal(game.navigateReplay('first').index, -1);
+    assert.equal(game.moveHistory.length, 0, 'move list state rewinds to before the capture');
+    assert.deepEqual(renderedMoves, []);
+    assert.equal(game.pieces.includes(capturedPawn), true, 'captured piece returns to the board during replay');
+    assert.equal(capturedPawn.img.parentNode, capturedSquare);
+    assert.equal(whiteRook.position, 21);
+    assert.equal(game.turn, 'white');
+    assert.equal(game.isReplayViewing, true);
+    assert.equal(game.movePiece(null), false, 'normal moves are blocked while viewing a historical position');
+    assert.equal(game.undoMove(), false);
+    assert.equal(game.redoMove(), false);
+    assert.equal(game.navigateReplay('last').index, 0);
+    assert.equal(game.moveHistory.length, 1, 'move history advances with the replay board');
+    assert.deepEqual(renderedMoves, Array.from(game.moveHistory));
+    assert.equal(game.pieces.includes(capturedPawn), false);
+    assert.equal(capturedPawn.img.parentNode, capturedSlot, 'captured piece returns to its tray');
+    assert.equal(whiteRook.position, 24);
+    assert.equal(game.isReplayViewing, false, 'the latest frame restores live-game interaction mode');
+    assert.equal(persistCalls, savesBeforeReplay, 'displaying replay snapshots does not autosave');
   }
   finally {
     context.document.getElementById = originalGetElementById;
+    context.document.createElement = originalCreateElement;
   }
 });
 

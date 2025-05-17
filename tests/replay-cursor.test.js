@@ -11,6 +11,7 @@ const gameSource = fs.readFileSync(path.join(root, 'src/Game.js'), 'utf8').split
 vm.runInContext(gameSource, context, { filename: 'src/Game.js' });
 const ReplayCursor = vm.runInContext('ReplayCursor', context);
 const Game = vm.runInContext('Game', context);
+const ReplayMap = vm.runInContext('Map', context);
 
 test('replay cursor advances and retreats one move while reporting its position', () => {
 	const cursor = new ReplayCursor(['1. e4', '1... e5', '2. Nf3']);
@@ -69,8 +70,10 @@ test('keyboard-focusable replay buttons navigate the cursor and disable at bound
 	const game = Object.create(Game.prototype);
 	Object.assign(game, {
 		moveHistory: ['1. e4', '1... e5'], replayCursor: new ReplayCursor(['1. e4', '1... e5']),
+		replaySnapshots: new ReplayMap([[0, { moveHistory: [] }], [1, { moveHistory: ['1. e4'] }], [2, { moveHistory: ['1. e4', '1... e5'] }]]),
 		undoStack: [], redoStack: [], gameOver: false,
 	});
+	game.restoreMoveState = snapshot => { game.renderedSnapshot = snapshot; };
 	try {
 		game.addHistoryControls();
 		assert.equal(controls['replay-first'].disabled, true);
