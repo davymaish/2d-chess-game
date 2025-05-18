@@ -28,7 +28,7 @@ _The game in action._
 - Automatically saves stable in-progress games after completed moves; after refresh, choose Resume Saved Game or Start New Game, and clear the saved copy while continuing a resumed game; corrupt or unsupported snapshots are discarded with an accessible notice, while blocked storage never prevents play
 - Collapsible FEN tools copy the current position to the clipboard (or a selectable field) and load valid positions with confirmation before replacing game progress
 - PGN tools export the current game and validate/display pasted games in a text preview without changing the active board
-- Replay cursor snapshots completed SAN history and supports bounded one-move stepping without mutating the active game
+- Replay cursor snapshots completed SAN history and synchronizes the displayed board, move list, and captured-piece trays at each recorded position
 - First, Previous, Next, and Last replay buttons are keyboard-focusable, announce the current replay position, and disable when movement is unavailable
 
 ## Installation
@@ -87,9 +87,9 @@ Use the collapsible **FEN tools** panel to copy the current position or paste a 
 
 `parseGamePGN(pgn)` reads one game and returns its decoded `headers`, normalized numbered SAN `moves`, and `result` for replay or import callers. It validates SAN token shape, move-number/color sequencing, and header/result consistency; brace and semicolon comments, nested side variations, numeric NAGs, and symbolic move annotations are removed while the main line is retained. Malformed comments, variations, results, or unsupported movetext tokens return a descriptive error.
 
-`ReplayCursor` provides a detached, immutable snapshot of a game's SAN move history. Its initial position is before the first move (`index: -1`); `next()`, `previous()`, `first()`, `last()`, and `seek(index)` provide bounded navigation, while `getState()` reports the current move and start/end status. `Game.getReplayState()` and `Game.stepReplay('next'|'previous')` expose the cursor model without changing the live board.
+`ReplayCursor` provides a detached, immutable snapshot of a game's SAN move history. Its initial position is before the first move (`index: -1`); `next()`, `previous()`, `first()`, `last()`, and `seek(index)` provide bounded navigation, while `getState()` reports the current move and start/end status. `Game.getReplayState()` exposes cursor state; `Game.stepReplay('next'|'previous')` also renders the corresponding captured game position.
 
-The move history includes First, Previous, Next, and Last replay controls. All are standard keyboard-focusable buttons with accessible names; unavailable directions are disabled, and an accessible live status announces the selected move or the pre-game position.
+The move history includes First, Previous, Next, and Last replay controls. Each committed move records a display snapshot; replay restores the matching board, SAN move list, and captured-piece trays together. All controls are standard keyboard-focusable buttons with accessible names; unavailable directions are disabled, the live status announces the selected position, and normal move/undo input remains locked while viewing an earlier frame. Display-only replay does not autosave the rendered frame.
 
 Open **PGN import and export** to place the current game’s PGN in the text field or validate a pasted PGN for preview. Import stores the parsed headers, moves, and result for later replay; it explicitly leaves the active board unchanged.
 

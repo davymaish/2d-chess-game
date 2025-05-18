@@ -112,6 +112,29 @@ async def main():
             fail_if(not any(piece["name"] == "whitePawn5" and piece["position"] == 45 for piece in saved["state"]["pieces"]),
                     "Saved state did not record the pawn's moved position")
 
+            await page.locator("#replay-first").click()
+            before_first_move = await page.evaluate(
+                """() => ({
+                    pawnAtStart: Boolean(document.querySelector('[id="25"] img#whitePawn5')),
+                    moveCount: document.querySelectorAll('#move-list > div').length,
+                    saved: JSON.parse(localStorage.getItem('2d-chess-game:save:v1')),
+                })"""
+            )
+            fail_if(not before_first_move["pawnAtStart"], "Replay to the initial position did not restore the pawn")
+            fail_if(before_first_move["moveCount"] != 0, "Replay to the initial position did not clear the displayed move list")
+            fail_if(before_first_move["saved"] != saved,
+                    "Displaying an earlier replay frame mutated the saved game")
+            await page.locator("#replay-next").click()
+            replay_next = await page.evaluate(
+                """() => ({
+                    pawnMoved: Boolean(document.querySelector('[id="45"] img#whitePawn5')),
+                    moveCount: document.querySelectorAll('#move-list > div').length,
+                })"""
+            )
+            fail_if(not replay_next["pawnMoved"] or replay_next["moveCount"] != 1,
+                    "Next replay frame did not synchronize the board and move list")
+            print("PASS move-by-move replay: board and move list stay synchronized without altering the saved game")
+
             await page.reload(wait_until="load")
             await page.locator("#resume-saved-game").click()
             restored = await page.evaluate(
