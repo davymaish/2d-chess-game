@@ -9,11 +9,13 @@ class Game {
 		this.pieces  = pieces;
 		this.turn    = 'white';
 		this.turnSign = document.getElementById('turn');
+		this.gameStatus = document.getElementById('game-status');
 		this.clickedPiece = null;
 		this.allowedMoves = null;
 		this.addEventListeners();
 		this.whiteSematary = document.getElementById('whiteSematary');
 		this.blackSematary = document.getElementById('blackSematary');
+		this.updateCheckStatus();
 	}
 
 	addEventListeners() {
@@ -63,6 +65,25 @@ class Game {
 		else{
 			this.turn = 'white';
 			this.turnSign.innerHTML = "White's Turn";
+		}
+	}
+
+	updateCheckStatus(isInCheck) {
+		this.board.querySelectorAll('.in-check').forEach(square => square.classList.remove('in-check'));
+		const checked = typeof isInCheck === 'boolean' ? isInCheck : this.king_checked(this.turn);
+		const colorName = this.turn.charAt(0).toUpperCase() + this.turn.slice(1);
+
+		if (checked) {
+			const king = this.getPieceByName(this.turn + 'King');
+			this.squares.forEach(square => {
+				if (String(square.id) === String(king.position)) square.classList.add('in-check');
+			});
+			this.gameStatus.textContent = colorName + ' is in check.';
+			this.gameStatus.classList.add('is-check');
+		}
+		else {
+			this.gameStatus.textContent = colorName + ' to move.';
+			this.gameStatus.classList.remove('is-check');
 		}
 	}
 
@@ -207,12 +228,11 @@ class Game {
 				square.append(clickedPiece.img);
 				this.clearSquares();
 				this.changeTurn();
-				if (this.king_checked(this.turn)) {
+				const opponentIsInCheck = this.king_checked(this.turn);
+				this.updateCheckStatus(opponentIsInCheck);
+				if (opponentIsInCheck) {
 					if (this.king_dead(this.turn)) {
 						this.checkmate(clickedPiece.color);
-					}
-					else{
-						// alert('check');
 					}
 				}
 			}
