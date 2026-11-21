@@ -336,7 +336,8 @@ class Game {
 
 	checkmate(color){
 		const endScene = document.getElementById('endscene');
-		endScene.getElementsByClassName('winning-sign')[0].innerHTML = color + ' Wins';
+		const winner = color.charAt(0).toUpperCase() + color.slice(1);
+		endScene.getElementsByClassName('winning-sign')[0].textContent = 'Checkmate. ' + winner + ' wins.';
 		endScene.classList.add('show');
 	}
 }
