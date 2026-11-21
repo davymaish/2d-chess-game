@@ -202,3 +202,32 @@ test('check feedback announces the checked side, highlights its king, and clears
   assert.equal(squares[1].classList.contains('in-check'), false);
   assert.equal(game.gameStatus.classList.contains('is-check'), false);
 });
+
+test('checkmate announces the result as an accessible alert', () => {
+  const makeClassList = () => {
+    const values = new Set();
+    return {
+      add: (value) => values.add(value),
+      remove: (value) => values.delete(value),
+      contains: (value) => values.has(value),
+    };
+  };
+  const message = { textContent: '', innerHTML: '' };
+  const endScene = {
+    classList: makeClassList(),
+    getElementsByClassName: () => [message],
+  };
+  const originalGetElementById = context.document.getElementById;
+  context.document.getElementById = (id) => id === 'endscene' ? endScene : null;
+
+  try {
+    const game = createGame([], null);
+    game.checkmate('white');
+
+    assert.equal(message.textContent, 'Checkmate. White wins.');
+    assert.equal(endScene.classList.contains('show'), true);
+  }
+  finally {
+    context.document.getElementById = originalGetElementById;
+  }
+});
