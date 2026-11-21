@@ -24,6 +24,14 @@ _The game in action._
 3. Select a square and the piece will move to that square
 4. The game displays the winner when the king is checked.
 
+## Running Tests
+
+The movement regression tests use Node.js's built-in test runner and require no additional dependencies. With Node.js 18 or newer installed, run:
+
+```sh
+npm test
+```
+
 ## Contributing
 
 Contributions are welcome! If you find any issues or have ideas for improvements, please open an issue or submit a pull request.
