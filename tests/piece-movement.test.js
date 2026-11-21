@@ -6,6 +6,7 @@ const vm = require('node:vm');
 
 const root = path.join(__dirname, '..');
 const context = vm.createContext({
+  console: { log() {} },
   document: { getElementById: (id) => ({ id }) },
   exports: {},
 });
@@ -24,8 +25,19 @@ for (const file of [
   });
 }
 
+const gameSource = fs.readFileSync(path.join(root, 'src/Game.js'), 'utf8').split('\nconst pieces = [')[0];
+vm.runInContext(gameSource, context, { filename: 'src/Game.js' });
+
 function pieceClass(name) {
   return vm.runInContext(name, context);
+}
+
+function createGame(pieces, clickedPiece) {
+  const Game = vm.runInContext('Game', context);
+  const game = Object.create(Game.prototype);
+  game.pieces = pieces;
+  game.clickedPiece = clickedPiece;
+  return game;
 }
 
 function onBoard(position) {
@@ -115,4 +127,35 @@ test('sliding-piece rays stop at the board edges', () => {
 
   assert.deepEqual(validPositions(rook.getAllowedMoves()), [12, 13, 14, 15, 16, 17, 18, 21, 31, 41, 51, 61, 71, 81]);
   assert.deepEqual(validPositions(bishop.getAllowedMoves()), [22, 33, 44, 55, 66, 77, 88]);
+});
+
+test('king legal moves from the h-file never include off-board file 9 squares', () => {
+  const King = pieceClass('King');
+  const king = new King(18, 'whiteKing');
+  const game = createGame([king], king);
+
+  assert.deepEqual([...game.unblockedPositions(king.getAllowedMoves(), king.position, 'white', true)].sort((a, b) => a - b), [17, 27, 28]);
+});
+
+test('a pinned rook may move along its pin but not expose its king', () => {
+  const King = pieceClass('King');
+  const Rook = pieceClass('Rook');
+  const whiteKing = new King(15, 'whiteKing');
+  const whiteRook = new Rook(25, 'whiteRook1');
+  const blackKing = new King(88, 'blackKing');
+  const blackRook = new Rook(85, 'blackRook1');
+  const game = createGame([whiteKing, whiteRook, blackKing, blackRook], whiteRook);
+
+  assert.deepEqual([...game.unblockedPositions(whiteRook.getAllowedMoves(), whiteRook.position, 'white', true)], [35, 45, 55, 65, 75, 85]);
+});
+
+test('king cannot move onto a square attacked by an enemy rook', () => {
+  const King = pieceClass('King');
+  const Rook = pieceClass('Rook');
+  const whiteKing = new King(15, 'whiteKing');
+  const blackKing = new King(88, 'blackKing');
+  const blackRook = new Rook(85, 'blackRook1');
+  const game = createGame([whiteKing, blackKing, blackRook], whiteKing);
+
+  assert.deepEqual([...game.unblockedPositions(whiteKing.getAllowedMoves(), whiteKing.position, 'white', true)].sort((a, b) => a - b), [14, 16, 24, 26]);
 });
