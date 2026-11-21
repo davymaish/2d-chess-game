@@ -159,3 +159,46 @@ test('king cannot move onto a square attacked by an enemy rook', () => {
 
   assert.deepEqual([...game.unblockedPositions(whiteKing.getAllowedMoves(), whiteKing.position, 'white', true)].sort((a, b) => a - b), [14, 16, 24, 26]);
 });
+
+test('check feedback announces the checked side, highlights its king, and clears after check ends', () => {
+  const King = pieceClass('King');
+  const whiteKing = new King(15, 'whiteKing');
+  const blackKing = new King(85, 'blackKing');
+  const game = createGame([whiteKing, blackKing], null);
+  const makeClassList = () => {
+    const values = new Set();
+    return {
+      add: (value) => values.add(value),
+      remove: (value) => values.delete(value),
+      contains: (value) => values.has(value),
+    };
+  };
+  const squares = [
+    { id: '15', classList: makeClassList() },
+    { id: '85', classList: makeClassList() },
+  ];
+  const statusClassList = makeClassList();
+  game.turn = 'black';
+  game.squares = squares;
+  game.board = {
+    querySelectorAll: (selector) => selector === '.in-check'
+      ? squares.filter((square) => square.classList.contains('in-check'))
+      : [],
+  };
+  game.gameStatus = { textContent: '', classList: statusClassList };
+  game.king_checked = (color) => color === 'black';
+
+  game.updateCheckStatus();
+
+  assert.equal(game.gameStatus.textContent, 'Black is in check.');
+  assert.equal(squares[1].classList.contains('in-check'), true);
+  assert.equal(game.gameStatus.classList.contains('is-check'), true);
+
+  game.turn = 'white';
+  game.king_checked = () => false;
+  game.updateCheckStatus();
+
+  assert.equal(game.gameStatus.textContent, 'White to move.');
+  assert.equal(squares[1].classList.contains('in-check'), false);
+  assert.equal(game.gameStatus.classList.contains('is-check'), false);
+});
