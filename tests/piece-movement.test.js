@@ -1,0 +1,118 @@
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const test = require('node:test');
+const vm = require('node:vm');
+
+const root = path.join(__dirname, '..');
+const context = vm.createContext({
+  document: { getElementById: (id) => ({ id }) },
+  exports: {},
+});
+
+for (const file of [
+  'src/Piece.js',
+  'src/pieces/Bishop.js',
+  'src/pieces/King.js',
+  'src/pieces/Knight.js',
+  'src/pieces/Pawn.js',
+  'src/pieces/Queen.js',
+  'src/pieces/Rook.js',
+]) {
+  vm.runInContext(fs.readFileSync(path.join(root, file), 'utf8'), context, {
+    filename: file,
+  });
+}
+
+function pieceClass(name) {
+  return vm.runInContext(name, context);
+}
+
+function onBoard(position) {
+  const rank = Math.floor(position / 10);
+  const file = position % 10;
+  return rank >= 1 && rank <= 8 && file >= 1 && file <= 8;
+}
+
+function validPositions(groups) {
+  return [...groups.flat().filter(onBoard)].sort((a, b) => a - b);
+}
+
+test('rook generates horizontal and vertical moves from a central square', () => {
+  const Rook = pieceClass('Rook');
+  const rook = new Rook(44, 'whiteRook1');
+
+  assert.deepEqual(validPositions(rook.getAllowedMoves()), [14, 24, 34, 41, 42, 43, 45, 46, 47, 48, 54, 64, 74, 84]);
+});
+
+test('bishop generates four diagonal rays from a central square', () => {
+  const Bishop = pieceClass('Bishop');
+  const bishop = new Bishop(44, 'whiteBishop1');
+
+  assert.deepEqual(validPositions(bishop.getAllowedMoves()), [11, 17, 22, 26, 33, 35, 53, 55, 62, 66, 71, 77, 88]);
+});
+
+test('queen combines rook-like and bishop-like movement', () => {
+  const Queen = pieceClass('Queen');
+  const queen = new Queen(44, 'whiteQueen');
+
+  assert.deepEqual(validPositions(queen.getAllowedMoves()), [11, 14, 17, 22, 24, 26, 33, 34, 35, 41, 42, 43, 45, 46, 47, 48, 53, 54, 55, 62, 64, 66, 71, 74, 77, 84, 88]);
+});
+
+test('knight generates all eight moves from a central square', () => {
+  const Knight = pieceClass('Knight');
+  const knight = new Knight(44, 'whiteKnight1');
+
+  assert.deepEqual(validPositions(knight.getAllowedMoves()), [23, 25, 32, 36, 52, 56, 63, 65]);
+});
+
+test('knight movement stays on the board from a corner', () => {
+  const Knight = pieceClass('Knight');
+  const knight = new Knight(11, 'whiteKnight1');
+
+  assert.deepEqual(validPositions(knight.getAllowedMoves()), [23, 32]);
+});
+
+test('king movement from a corner is limited to adjacent board squares', () => {
+  const King = pieceClass('King');
+  const king = new King(11, 'whiteKing');
+
+  assert.deepEqual(validPositions(king.getAllowedMoves()), [12, 21, 22]);
+});
+
+test('white pawn has one- and two-square advances on its starting rank', () => {
+  const Pawn = pieceClass('Pawn');
+  const pawn = new Pawn(24, 'whitePawn4');
+  const [attacks, advances] = pawn.getAllowedMoves();
+
+  assert.deepEqual([...attacks], [33, 35]);
+  assert.deepEqual([...advances], [34, 44]);
+});
+
+test('black pawn has one- and two-square advances on its starting rank', () => {
+  const Pawn = pieceClass('Pawn');
+  const pawn = new Pawn(75, 'blackPawn5');
+  const [attacks, advances] = pawn.getAllowedMoves();
+
+  assert.deepEqual([...attacks], [66, 64]);
+  assert.deepEqual([...advances], [65, 55]);
+});
+
+test('pawns do not receive a two-square advance after leaving their starting rank', () => {
+  const Pawn = pieceClass('Pawn');
+  const whitePawn = new Pawn(34, 'whitePawn4');
+  const blackPawn = new Pawn(65, 'blackPawn5');
+
+  assert.deepEqual([...whitePawn.getAllowedMoves()[1]], [44]);
+  assert.deepEqual([...blackPawn.getAllowedMoves()[1]], [55]);
+});
+
+test('sliding-piece rays stop at the board edges', () => {
+  const Rook = pieceClass('Rook');
+  const Bishop = pieceClass('Bishop');
+  const rook = new Rook(11, 'whiteRook1');
+  const bishop = new Bishop(11, 'whiteBishop1');
+
+  assert.deepEqual(validPositions(rook.getAllowedMoves()), [12, 13, 14, 15, 16, 17, 18, 21, 31, 41, 51, 61, 71, 81]);
+  assert.deepEqual(validPositions(bishop.getAllowedMoves()), [22, 33, 44, 55, 66, 77, 88]);
+});
