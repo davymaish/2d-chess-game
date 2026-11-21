@@ -231,3 +231,64 @@ test('checkmate announces the result as an accessible alert', () => {
     context.document.getElementById = originalGetElementById;
   }
 });
+
+test('terminal outcomes distinguish checkmate, stalemate, check, and an active position', () => {
+  const game = createGame([], null);
+  let checked = false;
+  let noLegalMoves = false;
+  game.king_checked = () => checked;
+  game.king_dead = () => noLegalMoves;
+
+  assert.equal(game.getGameOutcome('black'), 'ongoing');
+  checked = true;
+  assert.equal(game.getGameOutcome('black'), 'check');
+  noLegalMoves = true;
+  assert.equal(game.getGameOutcome('black'), 'checkmate');
+  checked = false;
+  assert.equal(game.getGameOutcome('black'), 'stalemate');
+});
+
+test('stalemate announces a draw and clears check styling', () => {
+  const makeClassList = () => {
+    const values = new Set();
+    return {
+      add: (value) => values.add(value),
+      remove: (value) => values.delete(value),
+      contains: (value) => values.has(value),
+    };
+  };
+  const message = { textContent: '' };
+  const endScene = {
+    classList: makeClassList(),
+    getElementsByClassName: () => [message],
+  };
+  const statusClassList = makeClassList();
+  statusClassList.add('is-check');
+  const originalGetElementById = context.document.getElementById;
+  context.document.getElementById = (id) => id === 'endscene' ? endScene : null;
+
+  try {
+    const game = createGame([], null);
+    game.gameStatus = { textContent: '', classList: statusClassList };
+    game.stalemate();
+
+    assert.equal(message.textContent, 'Draw by stalemate.');
+    assert.equal(game.gameStatus.textContent, 'Draw by stalemate.');
+    assert.equal(statusClassList.contains('is-check'), false);
+    assert.equal(endScene.classList.contains('show'), true);
+  }
+  finally {
+    context.document.getElementById = originalGetElementById;
+  }
+});
+
+test('black king has no legal moves but is not in check in a known stalemate position', () => {
+  const King = pieceClass('King');
+  const Queen = pieceClass('Queen');
+  const blackKing = new King(88, 'blackKing');
+  const whiteKing = new King(76, 'whiteKing');
+  const whiteQueen = new Queen(67, 'whiteQueen');
+  const game = createGame([blackKing, whiteKing, whiteQueen], blackKing);
+
+  assert.equal(game.getGameOutcome('black'), 'stalemate');
+});

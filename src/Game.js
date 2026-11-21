@@ -225,16 +225,13 @@ class Game {
 					clickedPiece.changePosition(newPosition, true);
 				else
 					clickedPiece.changePosition(newPosition);
-				square.append(clickedPiece.img);
-				this.clearSquares();
-				this.changeTurn();
-				const opponentIsInCheck = this.king_checked(this.turn);
-				this.updateCheckStatus(opponentIsInCheck);
-				if (opponentIsInCheck) {
-					if (this.king_dead(this.turn)) {
-						this.checkmate(clickedPiece.color);
-					}
-				}
+					square.append(clickedPiece.img);
+					this.clearSquares();
+					this.changeTurn();
+					const outcome = this.getGameOutcome(this.turn);
+					this.updateCheckStatus(outcome === 'check' || outcome === 'checkmate');
+					if (outcome === 'checkmate') this.checkmate(clickedPiece.color);
+					else if (outcome === 'stalemate') this.stalemate();
 			}
 			else{
 				return 0;
@@ -309,6 +306,13 @@ class Game {
 		return 1;
 	}
 
+	getGameOutcome(color) {
+		const checked = this.king_checked(color);
+		const noLegalMoves = this.king_dead(color);
+		if (noLegalMoves) return checked ? 'checkmate' : 'stalemate';
+		return checked ? 'check' : 'ongoing';
+	}
+
 	king_checked(color) {
 		const piece = this.clickedPiece;
 		const king = this.getPieceByName(color + 'King');
@@ -338,6 +342,15 @@ class Game {
 		const endScene = document.getElementById('endscene');
 		const winner = color.charAt(0).toUpperCase() + color.slice(1);
 		endScene.getElementsByClassName('winning-sign')[0].textContent = 'Checkmate. ' + winner + ' wins.';
+		endScene.classList.add('show');
+	}
+
+	stalemate() {
+		const message = 'Draw by stalemate.';
+		const endScene = document.getElementById('endscene');
+		endScene.getElementsByClassName('winning-sign')[0].textContent = message;
+		this.gameStatus.textContent = message;
+		this.gameStatus.classList.remove('is-check');
 		endScene.classList.add('show');
 	}
 }
