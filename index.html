@@ -9,9 +9,18 @@
 	<div id="endscene">
 		<p class="winning-sign" role="alert" aria-live="assertive" aria-atomic="true">white wins</p>
 		<div class="overlay">
+		</div>
 	</div>
-</div>
-	
+	<dialog id="promotion-dialog" aria-labelledby="promotion-title">
+		<h2 id="promotion-title">Choose a piece to promote to</h2>
+		<div class="promotion-options">
+			<button type="button" data-promotion="queen">Queen</button>
+			<button type="button" data-promotion="rook">Rook</button>
+			<button type="button" data-promotion="bishop">Bishop</button>
+			<button type="button" data-promotion="knight">Knight</button>
+		</div>
+	</dialog>
+
 <br>
 <div style="width:600px;margin:auto;position:relative;">
 
