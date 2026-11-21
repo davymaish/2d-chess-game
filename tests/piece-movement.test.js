@@ -565,3 +565,134 @@ test('promotion offers queen, rook, bishop, and knight with unique identities an
   assert.equal(new Set(promotedNames).size, 4);
   assert.deepEqual(finishedColors, ['white', 'white', 'white', 'white']);
 });
+
+test('kings alone and a single bishop or knight are insufficient mating material', () => {
+  const King = pieceClass('King');
+  const Bishop = pieceClass('Bishop');
+  const Knight = pieceClass('Knight');
+  const examples = [
+    [new King(15, 'whiteKing'), new King(85, 'blackKing')],
+    [new King(15, 'whiteKing'), new King(85, 'blackKing'), new Bishop(23, 'whiteBishop1')],
+    [new King(15, 'whiteKing'), new King(85, 'blackKing'), new Knight(23, 'blackKnight1')],
+  ];
+
+  for (const pieces of examples) {
+    const game = createGame(pieces, null);
+    assert.equal(game.hasInsufficientMaterial(), true);
+  }
+});
+
+test('bishop-only positions draw only when all bishops occupy the same square color', () => {
+  const King = pieceClass('King');
+  const Bishop = pieceClass('Bishop');
+  const sameColorGame = createGame([
+    new King(15, 'whiteKing'),
+    new King(85, 'blackKing'),
+    new Bishop(23, 'whiteBishop1'),
+    new Bishop(45, 'blackBishop1'),
+  ], null);
+  const oppositeColorGame = createGame([
+    new King(15, 'whiteKing'),
+    new King(85, 'blackKing'),
+    new Bishop(23, 'whiteBishop1'),
+    new Bishop(44, 'blackBishop1'),
+  ], null);
+
+  assert.equal(sameColorGame.hasInsufficientMaterial(), true);
+  assert.equal(oppositeColorGame.hasInsufficientMaterial(), false);
+});
+
+test('pawns, rooks, queens, and multiple knights prevent an insufficient-material draw', () => {
+  const King = pieceClass('King');
+  const Pawn = pieceClass('Pawn');
+  const Rook = pieceClass('Rook');
+  const Queen = pieceClass('Queen');
+  const Knight = pieceClass('Knight');
+  const examples = [
+    new Pawn(23, 'whitePawn1'),
+    new Rook(23, 'whiteRook1'),
+    new Queen(23, 'whiteQueen'),
+  ];
+
+  for (const extraPiece of examples) {
+    const game = createGame([
+      new King(15, 'whiteKing'),
+      new King(85, 'blackKing'),
+      extraPiece,
+    ], null);
+    assert.equal(game.hasInsufficientMaterial(), false, `${extraPiece.rank} at ${extraPiece.position}`);
+  }
+
+  const twoKnightsGame = createGame([
+    new King(15, 'whiteKing'),
+    new King(85, 'blackKing'),
+    new Knight(23, 'whiteKnight1'),
+    new Knight(24, 'whiteKnight2'),
+  ], null);
+  assert.equal(twoKnightsGame.hasInsufficientMaterial(), false);
+});
+
+test('insufficient material is reported as a draw only after checkmate and stalemate are ruled out', () => {
+  const King = pieceClass('King');
+  const game = createGame([
+    new King(15, 'whiteKing'),
+    new King(85, 'blackKing'),
+  ], null);
+  let checked = false;
+  let noLegalMoves = false;
+  game.king_checked = () => checked;
+  game.king_dead = () => noLegalMoves;
+
+  assert.equal(game.getGameOutcome('white'), 'insufficient-material');
+  noLegalMoves = true;
+  assert.equal(game.getGameOutcome('white'), 'stalemate');
+  checked = true;
+  assert.equal(game.getGameOutcome('white'), 'checkmate');
+});
+
+test('insufficient material announces an accessible draw and clears check styling', () => {
+  const makeClassList = () => {
+    const values = new Set();
+    return {
+      add: (value) => values.add(value),
+      remove: (value) => values.delete(value),
+      contains: (value) => values.has(value),
+    };
+  };
+  const message = { textContent: '' };
+  const endScene = {
+    classList: makeClassList(),
+    getElementsByClassName: () => [message],
+  };
+  const statusClassList = makeClassList();
+  statusClassList.add('is-check');
+  const originalGetElementById = context.document.getElementById;
+  context.document.getElementById = (id) => id === 'endscene' ? endScene : null;
+
+  try {
+    const game = createGame([], null);
+    game.gameStatus = { textContent: '', classList: statusClassList };
+    game.drawByInsufficientMaterial();
+
+    assert.equal(message.textContent, 'Draw by insufficient material.');
+    assert.equal(game.gameStatus.textContent, 'Draw by insufficient material.');
+    assert.equal(statusClassList.contains('is-check'), false);
+    assert.equal(endScene.classList.contains('show'), true);
+  }
+  finally {
+    context.document.getElementById = originalGetElementById;
+  }
+});
+
+test('finishMove presents an insufficient-material outcome as a draw', () => {
+  const game = createGame([], null);
+  let drawAnnounced = false;
+  game.changeTurn = () => {};
+  game.getGameOutcome = () => 'insufficient-material';
+  game.updateCheckStatus = () => {};
+  game.drawByInsufficientMaterial = () => { drawAnnounced = true; };
+
+  game.finishMove('white');
+
+  assert.equal(drawAnnounced, true);
+});
