@@ -286,6 +286,7 @@ class Game {
 		this.updateCheckStatus(outcome === 'check' || outcome === 'checkmate');
 		if (outcome === 'checkmate') this.checkmate(movingColor);
 		else if (outcome === 'stalemate') this.stalemate();
+		else if (outcome === 'insufficient-material') this.drawByInsufficientMaterial();
 	}
 
 	capturePiece(piece) {
@@ -385,7 +386,23 @@ class Game {
 		const checked = this.king_checked(color);
 		const noLegalMoves = this.king_dead(color);
 		if (noLegalMoves) return checked ? 'checkmate' : 'stalemate';
+		if (this.hasInsufficientMaterial()) return 'insufficient-material';
 		return checked ? 'check' : 'ongoing';
+	}
+
+	hasInsufficientMaterial() {
+		const kings = this.pieces.filter(piece => piece.rank === 'king');
+		if (kings.length !== 2) return false;
+
+		const material = this.pieces.filter(piece => piece.rank !== 'king');
+		if (material.length === 0) return true;
+		if (material.some(piece => ['pawn', 'rook', 'queen'].includes(piece.rank))) return false;
+		if (material.length === 1) return ['bishop', 'knight'].includes(material[0].rank);
+		if (!material.every(piece => piece.rank === 'bishop')) return false;
+
+		const squareColor = position => (Math.floor(position / 10) + position % 10) % 2;
+		const bishopsColor = squareColor(material[0].position);
+		return material.every(piece => squareColor(piece.position) === bishopsColor);
 	}
 
 	king_checked(color) {
@@ -422,6 +439,15 @@ class Game {
 
 	stalemate() {
 		const message = 'Draw by stalemate.';
+		const endScene = document.getElementById('endscene');
+		endScene.getElementsByClassName('winning-sign')[0].textContent = message;
+		this.gameStatus.textContent = message;
+		this.gameStatus.classList.remove('is-check');
+		endScene.classList.add('show');
+	}
+
+	drawByInsufficientMaterial() {
+		const message = 'Draw by insufficient material.';
 		const endScene = document.getElementById('endscene');
 		endScene.getElementsByClassName('winning-sign')[0].textContent = message;
 		this.gameStatus.textContent = message;
