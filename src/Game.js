@@ -10,6 +10,9 @@ class Game {
 		this.turn    = 'white';
 		this.enPassantTarget = null;
 		this.enPassantPawn = null;
+		this.promotionDialog = document.getElementById('promotion-dialog');
+		this.pendingPromotion = null;
+		this.promotionCounter = 0;
 		this.turnSign = document.getElementById('turn');
 		this.gameStatus = document.getElementById('game-status');
 		this.clickedPiece = null;
@@ -32,6 +35,10 @@ class Game {
 				event.preventDefault();
 			}); 
 			square.addEventListener("drop", this.movePiece.bind(this)); 
+		});
+		this.promotionDialog.addEventListener('cancel', event => event.preventDefault());
+		this.promotionDialog.querySelectorAll('[data-promotion]').forEach(button => {
+			button.addEventListener('click', this.selectPromotion.bind(this));
 		});
 	}
 
@@ -254,30 +261,31 @@ class Game {
 	movePiece(event, square='') {
 		square = square || event.target;
 		if (square.classList.contains('allowed')) {
-				const clickedPiece = this.clickedPiece;
-				if (clickedPiece) {
-					const newPosition = square.getAttribute('id');
-					const originalPosition = parseInt(clickedPiece.position);
-					const enPassantCapture = this.getEnPassantCapture(newPosition);
-					if (enPassantCapture) this.capturePiece(enPassantCapture);
-					if (clickedPiece.hasRank('king') || clickedPiece.hasRank('pawn'))
-						clickedPiece.changePosition(newPosition, true);
-					else
-						clickedPiece.changePosition(newPosition);
-					this.recordEnPassantOpportunity(clickedPiece, originalPosition, newPosition);
-					square.append(clickedPiece.img);
-					this.clearSquares();
-					this.changeTurn();
-					const outcome = this.getGameOutcome(this.turn);
-					this.updateCheckStatus(outcome === 'check' || outcome === 'checkmate');
-					if (outcome === 'checkmate') this.checkmate(clickedPiece.color);
-					else if (outcome === 'stalemate') this.stalemate();
-			}
-			else{
-				return 0;
-			}
+			const clickedPiece = this.clickedPiece;
+			if (!clickedPiece) return 0;
+
+			const newPosition = square.getAttribute('id');
+			const originalPosition = parseInt(clickedPiece.position);
+			const enPassantCapture = this.getEnPassantCapture(newPosition);
+			if (enPassantCapture) this.capturePiece(enPassantCapture);
+			if (clickedPiece.hasRank('king') || clickedPiece.hasRank('pawn'))
+				clickedPiece.changePosition(newPosition, true);
+			else
+				clickedPiece.changePosition(newPosition);
+			this.recordEnPassantOpportunity(clickedPiece, originalPosition, newPosition);
+			square.append(clickedPiece.img);
+			this.clearSquares();
+			if (!this.pendingPromotion) this.finishMove(clickedPiece.color);
 		}
 		if (event) event.preventDefault();
+	}
+
+	finishMove(movingColor) {
+		this.changeTurn();
+		const outcome = this.getGameOutcome(this.turn);
+		this.updateCheckStatus(outcome === 'check' || outcome === 'checkmate');
+		if (outcome === 'checkmate') this.checkmate(movingColor);
+		else if (outcome === 'stalemate') this.stalemate();
 	}
 
 	capturePiece(piece) {
@@ -308,13 +316,36 @@ class Game {
 		this.changeTurn();
 	}
 
-	promote(pawn) {
-		const queenName = pawn.name.replace('Pawn', 'Queen');
+	beginPromotion(pawn) {
+		this.pendingPromotion = pawn;
+		this.promotionDialog.showModal();
+		this.promotionDialog.querySelector('[data-promotion]').focus();
+	}
+
+	selectPromotion(event) {
+		this.promote(this.pendingPromotion, event.currentTarget.getAttribute('data-promotion'));
+	}
+
+	promote(pawn, choice) {
+		const pieceClasses = { queen: Queen, rook: Rook, bishop: Bishop, knight: Knight };
+		const PromotedPiece = pieceClasses[choice];
+		if (!pawn || pawn !== this.pendingPromotion || !PromotedPiece) return null;
+
+		const capitalizedChoice = choice.charAt(0).toUpperCase() + choice.slice(1);
+		const promotedName = `${pawn.color}${capitalizedChoice}Promoted${++this.promotionCounter}`;
 		const image = pawn.img;
-		image.id = queenName;
-		image.src = image.src.replace('Pawn', 'Queen');
+		image.id = promotedName;
+		image.className = `piece ${choice}`;
+		image.src = image.src.replace(/Pawn\.png$/, `${capitalizedChoice}.png`);
+
 		this.pieces.splice(this.pieces.indexOf(pawn), 1);
-		this.pieces.push( new Queen(pawn.position, queenName) );
+		const promotedPiece = new PromotedPiece(pawn.position, promotedName);
+		promotedPiece.img = image;
+		this.pieces.push(promotedPiece);
+		this.pendingPromotion = null;
+		this.promotionDialog.close();
+		this.finishMove(pawn.color);
+		return promotedPiece;
 	}
 
 	myKingChecked(pos, kill=true, capturedPiece=null){

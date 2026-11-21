@@ -181,3 +181,45 @@ img{
     color: white;
     border: 0;
 }
+
+#promotion-dialog {
+	border: 0;
+	border-radius: 0.6rem;
+	padding: 1.25rem;
+	max-width: min(90vw, 24rem);
+	box-shadow: 0 0.75rem 2rem rgba(0, 0, 0, 0.3);
+}
+
+#promotion-dialog::backdrop {
+	background: rgba(0, 0, 0, 0.55);
+}
+
+#promotion-dialog h2 {
+	margin-bottom: 1rem;
+	color: #263238;
+	font-size: 1.25rem;
+}
+
+.promotion-options {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(7rem, 1fr));
+	gap: 0.75rem;
+}
+
+.promotion-options button {
+	padding: 0.75rem 1rem;
+	border: 1px solid #7f979e;
+	border-radius: 0.35rem;
+	background: #7f979e;
+	color: #fff;
+	font: inherit;
+	font-weight: 700;
+	cursor: pointer;
+}
+
+.promotion-options button:hover,
+.promotion-options button:focus-visible {
+	background: #263238;
+	outline: 3px solid #b2dfdb;
+	outline-offset: 2px;
+}
