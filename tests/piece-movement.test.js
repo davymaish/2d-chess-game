@@ -673,6 +673,35 @@ test('phone controls and sound preference expose comfortable touch targets', () 
 	assert.match(mobileStyles, /\.history-controls button\s*\{[^}]*flex:\s*1/s);
 });
 
+test('phone board taps use manipulation touch handling and tapping the selected piece cancels it', () => {
+	const stylesheet = fs.readFileSync(path.join(root, 'assets/chess.css'), 'utf8');
+	const mobileStyles = stylesheet.split('@media (max-width: 640px)')[1].split('@media (prefers-reduced-motion')[0];
+	assert.match(mobileStyles, /#board,[\s\S]*?#board img\.piece\s*\{[^}]*touch-action:\s*manipulation/s);
+	assert.match(mobileStyles, /#board img\.piece\s*\{[^}]*-webkit-user-drag:\s*none/s);
+
+	const piece = { name: 'whiteKnight1' };
+	const game = createGame([piece], piece);
+	const classList = () => {
+		const values = new Set();
+		return { add: value => values.add(value), remove: value => values.delete(value), contains: value => values.has(value) };
+	};
+	const selected = { classList: classList() };
+	const destination = { classList: classList() };
+	selected.classList.add('selected-square');
+	destination.classList.add('allowed');
+	destination.classList.add('allowed-quiet');
+	game.board = { querySelectorAll: selector => selector === '.allowed' ? [destination] : selector === '.selected-square' ? [selected] : [] };
+	game.allowedMoves = [33];
+	game.selectionStatus = { textContent: 'white knight selected on e2.' };
+	game.pieceMove({ type: 'click', target: { getAttribute: () => 'whiteKnight1' } });
+	assert.equal(game.clickedPiece, null);
+	assert.equal(game.allowedMoves, null);
+	assert.equal(selected.classList.contains('selected-square'), false);
+	assert.equal(destination.classList.contains('allowed'), false);
+	assert.equal(destination.classList.contains('allowed-quiet'), false);
+	assert.equal(game.selectionStatus.textContent, '');
+});
+
 test('keyboard boundary, finished-game, and unavailable sound-storage states fail safely', () => {
 	const square = {
 		id: '11',

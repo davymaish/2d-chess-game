@@ -508,6 +508,15 @@ input:focus-visible {
 }
 
 @media (max-width: 640px) {
+	#board,
+	#board .square,
+	#board img.piece {
+		touch-action: manipulation;
+	}
+	#board img.piece {
+		-webkit-user-drag: none;
+		user-select: none;
+	}
 	.game-controls {
 		display: flex;
 		flex-wrap: wrap;
