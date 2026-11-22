@@ -25,7 +25,7 @@
 <br>
 <div style="width:600px;margin:auto;position:relative;">
 
-	<div id="board">
+		<div id="board" data-orientation="white">
 		<div id="final" class="odd">
 			<div id="81" class="square" data-square="8-a">
 				<img class="piece rook" id="blackRook1" src="./assets/img/blackRook.png">
@@ -190,7 +190,7 @@
 	</div>
 
 		<div style="margin-top: 50px;">
-			<button class="flip-board" onclick="boardAnimate()">Flip Board</button>
+			<button id="flip-board" class="flip-board" type="button" onclick="boardAnimate()" aria-pressed="false">Flip Board</button>
 			<button id="new-game" class="new-game" type="button">New Game</button>
 			<button id="resign-game" class="resign-game" type="button">Resign</button>
 			<p id="turn" class="turn-text"> White's Turn</p>
@@ -226,30 +226,8 @@
 <script type="text/javascript" src="./src/pieces/Knight.js"></script>
 <script type="text/javascript" src="./src/pieces/Pawn.js"></script>
 
-<script type="text/javascript" src="./src/Game.js"></script>
-
-<script type="text/javascript">
-	function boardAnimate(){
-		const board = document.getElementById('board');
-		const elements = board.getElementsByClassName('piece');
-		if (board.classList.contains('animate')) {
-			board.classList.remove('animate');
-			board.classList.add('animate-backward');
-			for (element of elements) {
-				element.classList.remove('forward');
-				element.classList.add('backward');
-			}
-		}
-		else{
-			board.classList.remove('animate-backward');
-			board.classList.add('animate');
-			for (element of elements) {
-				element.classList.remove('backward');
-				element.classList.add('forward');
-			}
-		}	
-	}
-</script>
+	<script type="text/javascript" src="./src/Game.js"></script>
+	<script type="text/javascript" src="./src/board-orientation.js"></script>
 
 </body>
 </html>
