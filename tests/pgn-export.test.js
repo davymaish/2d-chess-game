@@ -16,7 +16,7 @@ const context = vm.createContext({
 	clearGameSaveFromStorage() {},
 });
 vm.runInContext(fs.readFileSync(path.join(root, 'src/pgn.js'), 'utf8'), context, { filename: 'src/pgn.js' });
-const pgnAPI = vm.runInContext('({ serializeGameToPGN })', context);
+const pgnAPI = vm.runInContext('({ serializeGameToPGN, parseGamePGN })', context);
 const gameSource = fs.readFileSync(path.join(root, 'src/Game.js'), 'utf8').split('\nconst pieces = [')[0];
 vm.runInContext(gameSource, context, { filename: 'src/Game.js' });
 const Game = vm.runInContext('Game', context);
@@ -52,6 +52,30 @@ function gameForEndState() {
 	});
 	return game;
 }
+
+test('PGN parser reads escaped tag pairs and a sequential numbered SAN main line', () => {
+	const parsed = JSON.parse(JSON.stringify(pgnAPI.parseGamePGN(
+		'[Event "Club"]\n[White "Ada \\\"Ace\\\""]\n[Result "1-0"]\n\n1.e4 e5 2.Nf3 Nc6 1-0'
+	)));
+	assert.deepEqual(parsed, {
+		headers: { Event: 'Club', White: 'Ada "Ace"', Result: '1-0' },
+		moves: ['1. e4', '1... e5', '2. Nf3', '2... Nc6'],
+		result: '1-0',
+	});
+});
+
+test('PGN parser starts from a black-to-move FEN fullmove number', () => {
+	const parsed = pgnAPI.parseGamePGN('[FEN "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR b KQkq - 0 42"]\n\n42...e5 43.Nf3 *');
+	assert.deepEqual(JSON.parse(JSON.stringify(parsed.moves)), ['42... e5', '43. Nf3']);
+});
+
+test('PGN parser rejects malformed tags, invalid SAN, inconsistent numbering, and unsupported annotations', () => {
+	assert.throws(() => pgnAPI.parseGamePGN('[Event Bad]\n\n1. e4 *'), /Invalid PGN tag pair/i);
+	assert.throws(() => pgnAPI.parseGamePGN('1. e2e4 *'), /Invalid SAN token/i);
+	assert.throws(() => pgnAPI.parseGamePGN('1. e4 2... e5 *'), /do not follow/i);
+	assert.throws(() => pgnAPI.parseGamePGN('[Result "1-0"]\n\n1. e4 0-1'), /does not match/i);
+	assert.throws(() => pgnAPI.parseGamePGN('1. e4 {comment} *'), /not supported/i);
+});
 
 test('PGN export emits the standard tag roster and unfinished result marker', () => {
 	const pgn = pgnAPI.serializeGameToPGN(pgnGame());
