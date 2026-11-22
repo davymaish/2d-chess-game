@@ -56,6 +56,8 @@ class Game {
 		this.blackSematary = document.getElementById('blackSematary');
 		this.updateBoardAccessibleNames();
 		this.updateCheckStatus();
+		const savedGame = loadGameFromStorage();
+		if (savedGame) this.restoreSavedGame(savedGame);
 	}
 
 	addEventListeners() {
@@ -598,6 +600,10 @@ class Game {
 		else if (outcome === 'insufficient-material') this.drawByInsufficientMaterial();
 		else if (outcome === 'fifty-move-draw') this.drawByFiftyMoveRule();
 		else if (outcome === 'threefold-repetition') this.drawByThreefoldRepetition();
+		if (!this.isCastlingRookMove) {
+			if (this.gameOver) clearGameSaveFromStorage();
+			else saveGameToStorage(this);
+		}
 	}
 
 	formatMove(move) {
@@ -839,9 +845,11 @@ class Game {
 			if (board && typeof board.querySelectorAll === 'function') board.querySelectorAll('.last-move').forEach(square => {
 				if (square.classList && typeof square.classList.remove === 'function') square.classList.remove('last-move');
 			});
+			}
+			this.refreshOutcomeDisplay();
+			if (this.gameOver) clearGameSaveFromStorage();
+			else saveGameToStorage(this);
 		}
-		this.refreshOutcomeDisplay();
-	}
 
 	renderMoveHistory() {
 		if (this.moveList) {
@@ -909,6 +917,7 @@ class Game {
 			Boolean(this.pendingPromotion || this.pendingHistoryMove) ||
 			(this.undoStack && this.undoStack.length > 0));
 		if (hasProgress && !window.confirm('Start a new game? The current game and move history will be discarded.')) return false;
+		clearGameSaveFromStorage();
 		window.location.reload();
 		return true;
 	}
@@ -925,6 +934,7 @@ class Game {
 	finishGame(message) {
 		if (this.gameOver) return false;
 		this.gameOver = true;
+		clearGameSaveFromStorage();
 		this.playStatusSound('game-end');
 		if (this.clock && typeof this.clock.stop === 'function') this.clock.stop();
 		this.updateClockControls();
@@ -1018,6 +1028,89 @@ class Game {
 		if (this.halfmoveClock >= 100) return 'fifty-move-draw';
 		if (this.hasThreefoldRepetition()) return 'threefold-repetition';
 		return checked ? 'check' : 'ongoing';
+	}
+
+	restoreSavedGame(save) {
+		if (!save || validateGameSave(save).length) return false;
+		const state = save.state;
+		const existingPieces = [...this.pieces];
+		const savedNames = new Set(state.pieces.map(piece => piece.name));
+		const unusedPawns = existingPieces.filter(piece => piece.rank === 'pawn' && !savedNames.has(piece.name));
+		const promotedRecords = state.pieces.filter(piece => !existingPieces.some(candidate => candidate.name === piece.name));
+		if (promotedRecords.length > unusedPawns.length) return false;
+		const rankClasses = { king: King, queen: Queen, rook: Rook, bishop: Bishop, knight: Knight, pawn: Pawn };
+		const usedPieces = new Set();
+		const restoredPieces = [];
+		for (const record of state.pieces) {
+			let piece = existingPieces.find(candidate => candidate.name === record.name && candidate.rank === record.rank);
+			if (!piece) {
+				const pawnImage = unusedPawns.find(candidate => !usedPieces.has(candidate));
+				if (!pawnImage) return false;
+				piece = new rankClasses[record.rank](record.position, record.name);
+				piece.img = pawnImage.img;
+				usedPieces.add(pawnImage);
+			}
+			piece.position = record.position;
+			if (typeof record.ableToCastle === 'boolean') piece.ableToCastle = record.ableToCastle;
+			piece.img.id = record.name;
+			piece.img.className = `piece ${record.rank}`;
+			piece.img.src = `./assets/img/${record.color}${record.rank.charAt(0).toUpperCase()}${record.rank.slice(1)}.png`;
+			piece.img.alt = `${record.color} ${record.rank}`;
+			const square = document.getElementById(record.position);
+			if (!square) return false;
+			square.append(piece.img);
+			usedPieces.add(piece);
+			restoredPieces.push(piece);
+		}
+		for (const piece of existingPieces) {
+			if (usedPieces.has(piece)) continue;
+			piece.img.className = '';
+			const cemetery = piece.color === 'white' ? this.whiteSematary : this.blackSematary;
+			const grave = cemetery && cemetery.querySelector(`.${piece.rank}`);
+			if (grave) grave.append(piece.img);
+		}
+		this.pieces = restoredPieces;
+		this.turn = state.turn;
+		this.enPassantTarget = state.enPassantTarget;
+		this.enPassantPawn = restoredPieces.find(piece => piece.name === state.enPassantPawn) || null;
+		this.halfmoveClock = state.halfmoveClock;
+		this.moveHistory = [...state.moveHistory];
+		this.positionCounts = new Map(state.positionCounts);
+		this.lastMove = state.lastMove ? [...state.lastMove] : null;
+		if (this.turnSign) this.turnSign.textContent = this.turn === 'white' ? "White's Turn" : "Black's Turn";
+		this.renderMoveHistory();
+		this.updateBoardAccessibleNames();
+		this.clearSquares();
+		if (this.lastMove) {
+			const moves = [];
+			for (let index = 0; index < this.lastMove.length; index += 2) {
+				moves.push({ from: this.lastMove[index], to: this.lastMove[index + 1] });
+			}
+			this.setLastMoveHighlight(moves);
+		}
+		if (state.clock) {
+			const clock = new ChessClock({
+				whiteSeconds: state.clock.whiteMilliseconds / 1000,
+				blackSeconds: state.clock.blackMilliseconds / 1000,
+				incrementSeconds: state.clock.incrementMilliseconds / 1000,
+				activeColor: state.clock.activeColor,
+				onTick: clockState => this.updateClockDisplay(clockState),
+			});
+			clock.flaggedColor = state.clock.flaggedColor;
+			if (state.clock.running) this.attachClock(clock);
+			else {
+				this.clock = clock;
+				this.updateClockDisplay({
+					activeColor: clock.activeColor,
+					whiteSeconds: clock.getRemainingSeconds('white'),
+					blackSeconds: clock.getRemainingSeconds('black'),
+					running: false,
+				});
+			}
+		}
+		this.updateClockControls();
+		this.updateCheckStatus();
+		return true;
 	}
 
 	getAvailableEnPassantTarget() {

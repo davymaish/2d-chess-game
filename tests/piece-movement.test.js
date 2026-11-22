@@ -27,6 +27,10 @@ for (const file of [
   });
 }
 
+for (const file of ['src/game-save.js', 'src/game-persistence.js']) {
+  vm.runInContext(fs.readFileSync(path.join(root, file), 'utf8'), context, { filename: file });
+}
+
 const gameSource = fs.readFileSync(path.join(root, 'src/Game.js'), 'utf8').split('\nconst pieces = [')[0];
 vm.runInContext(gameSource, context, { filename: 'src/Game.js' });
 vm.runInContext(fs.readFileSync(path.join(root, 'src/board-orientation.js'), 'utf8'), context, { filename: 'src/board-orientation.js' });
