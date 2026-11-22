@@ -942,3 +942,63 @@ test('finishMove records repeated positions and announces the third occurrence',
   assert.equal(game.gameStatus.textContent, 'Draw by threefold repetition.');
   assert.equal(endScene.classList.contains('show'), true);
 });
+
+
+test('move history formats quiet moves, captures, castling, and promotion', () => {
+  const game = createGame([], null);
+
+  assert.equal(game.formatMove({ rank: 'pawn', from: 25, to: 45, isCapture: false }), 'e2-e4');
+  assert.equal(game.formatMove({ rank: 'pawn', from: 55, to: 66, isCapture: true }), 'e5xf6');
+  assert.equal(game.formatMove({ rank: 'knight', from: 17, to: 36, isCapture: false }), 'Ng1-f3');
+  assert.equal(game.formatMove({ rank: 'king', from: 15, to: 17, isCapture: false }), 'O-O');
+  assert.equal(game.formatMove({ rank: 'king', from: 15, to: 13, isCapture: false }), 'O-O-O');
+  assert.equal(game.formatMove({ rank: 'pawn', from: 78, to: 88, isCapture: false, promotion: 'queen' }), 'h7-h8=Q');
+});
+
+test('move history displays moves in chronological order with full-move numbers', () => {
+  const game = createGame([], null);
+  const items = [];
+  game.moveHistory = [];
+  game.moveList = {
+    appendChild: (item) => items.push(item.textContent),
+    scrollHeight: 24,
+    scrollTop: 0,
+  };
+  game.emptyMoveHistory = { hidden: false };
+  const originalCreateElement = context.document.createElement;
+  context.document.createElement = (tag) => ({ tagName: tag, textContent: '' });
+
+  try {
+    game.recordMoveHistory({ color: 'white', rank: 'pawn', from: 25, to: 45, isCapture: false });
+    game.recordMoveHistory({ color: 'black', rank: 'pawn', from: 75, to: 55, isCapture: false });
+    game.recordMoveHistory({ color: 'white', rank: 'knight', from: 17, to: 36, isCapture: false });
+  }
+  finally {
+    context.document.createElement = originalCreateElement;
+  }
+
+  assert.deepEqual(items, ['1. e2-e4', '1... e7-e5', '2. Ng1-f3']);
+  assert.equal(game.emptyMoveHistory.hidden, true);
+  assert.equal(game.moveList.scrollTop, game.moveList.scrollHeight);
+});
+
+test('finishMove commits a completed move but skips a nested castling rook move', () => {
+  const game = createGame([], null);
+  const recorded = [];
+  game.isCastlingRookMove = false;
+  game.pendingHistoryMove = { color: 'white', rank: 'pawn', from: 25, to: 45, isCapture: false };
+  game.recordMoveHistory = (move) => recorded.push(move);
+  game.changeTurn = () => {};
+  game.recordPosition = () => {};
+  game.getGameOutcome = () => 'ongoing';
+  game.updateCheckStatus = () => {};
+
+  game.finishMove('white');
+  assert.equal(recorded.length, 1);
+  assert.equal(game.pendingHistoryMove, null);
+
+  game.pendingHistoryMove = { color: 'white', rank: 'pawn', from: 78, to: 88, isCapture: false };
+  game.isCastlingRookMove = true;
+  game.finishMove('white');
+  assert.equal(recorded.length, 1, 'nested castling completion must not add an extra history entry');
+});
