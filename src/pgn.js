@@ -84,6 +84,39 @@ function serializeGameToPGN(game, headers = {}) {
 	return `${tags.join('\n')}\n\n${wrapPGNMovetext(tokens)}`;
 }
 
+function stripPGNCommentsAndVariations(movetext) {
+	let output = '';
+	let variationDepth = 0;
+	for (let index = 0; index < movetext.length; index++) {
+		const character = movetext[index];
+		if (character === '{') {
+			const commentEnd = movetext.indexOf('}', index + 1);
+			if (commentEnd === -1) throw new TypeError('PGN contains an unterminated brace comment.');
+			if (movetext.slice(index + 1, commentEnd).includes('{')) throw new TypeError('PGN brace comments cannot be nested.');
+			index = commentEnd;
+			output += ' ';
+			continue;
+		}
+		if (character === ';' && variationDepth === 0) {
+			while (index < movetext.length && movetext[index] !== '\n' && movetext[index] !== '\r') index++;
+			output += ' ';
+			continue;
+		}
+		if (character === '(') {
+			variationDepth++;
+			continue;
+		}
+		if (character === ')') {
+			if (variationDepth === 0) throw new TypeError('PGN contains an unmatched variation close.');
+			variationDepth--;
+			continue;
+		}
+		if (variationDepth === 0) output += character;
+	}
+	if (variationDepth !== 0) throw new TypeError('PGN contains an unterminated variation.');
+	return output.replace(/\$\d+/g, ' ').replace(/([^\s!?]+)[!?]+(?=\s|$)/g, '$1');
+}
+
 function parseGamePGN(pgn) {
 	if (typeof pgn !== 'string') throw new TypeError('PGN input must be a string.');
 	const lines = pgn.replace(/^\uFEFF/, '').split(/\r?\n/);
@@ -104,9 +137,8 @@ function parseGamePGN(pgn) {
 		throw new TypeError('PGN Result header must be 1-0, 0-1, 1/2-1/2, or *.');
 	}
 
-	const rawMovetext = lines.slice(lineIndex).join('\n');
-	if (/[{};()$!?]/.test(rawMovetext)) throw new TypeError('PGN comments, variations, NAGs, and annotations are not supported by the basic parser.');
-	const movetext = rawMovetext.replace(/(\d+\.(?:\.\.)?)(?=\S)/g, '$1 ').trim();
+	const movetext = stripPGNCommentsAndVariations(lines.slice(lineIndex).join('\n'))
+		.replace(/(\d+\.(?:\.\.)?)(?=\S)/g, '$1 ').trim();
 	const tokens = movetext ? movetext.split(/\s+/) : [];
 	let expectedNumber = 1;
 	let expectedColor = 'white';
