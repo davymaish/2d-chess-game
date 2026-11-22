@@ -73,7 +73,7 @@ To use an existing Chromium installation instead of Playwright's downloaded brow
 
 `Game.toFEN()` serializes the current board as Forsyth–Edwards Notation. It exports piece placement, active color, castling rights that remain available on the original king/rook squares, the en-passant target, and the half-move and full-move counters. The standalone `serializeGameToFEN(game)` helper can also be used by tools and tests; invalid board state or counters are rejected instead of producing malformed FEN.
 
-`parseGameFEN(fen)` parses the six standard FEN fields, and `Game.loadFEN(fen)` initializes the board, active side, move counters, castling flags, and en-passant state from a FEN string. A successful import resets the current move history and clock, clears undo/redo history, and saves the imported position when browser storage is available. Invalid or un-restorable input returns `false` without replacing the current board.
+`parseGameFEN(fen)` parses the six standard FEN fields and rejects impossible piece counts, missing or adjacent kings, pawns on promotion ranks, unsupported castling claims, inconsistent en-passant claims, and positions where the side that just moved left its king in check. `Game.loadFEN(fen)` initializes the board, active side, move counters, castling flags, and en-passant state from a valid FEN string. Active-game loading does not accept positions already at the 100-halfmove draw threshold. A successful import resets the current move history and clock, clears undo/redo history, and saves the imported position when browser storage is available. Invalid or un-restorable input returns `false`, announces a specific reason in the live game-status region, and leaves the current board unchanged.
 
 ## Chess clock model
 

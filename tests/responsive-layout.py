@@ -245,11 +245,24 @@ async def main():
             fail_if(loaded_fen_state["enPassantPawn"] != "whitePawn5", "Imported FEN did not link the en-passant pawn")
             invalid_fen_result = await page.evaluate("""() => {
                 const before = game.toFEN();
-                return { accepted: game.loadFEN('not a FEN'), before, after: game.toFEN() };
+                const malformedAccepted = game.loadFEN('not a FEN');
+                const malformedMessage = document.querySelector('#game-status').textContent;
+                const illegalAccepted = game.loadFEN('4k3/8/8/8/8/8/8/8 w - - 0 1');
+                return {
+                    malformedAccepted,
+                    malformedMessage,
+                    illegalAccepted,
+                    illegalMessage: document.querySelector('#game-status').textContent,
+                    before,
+                    after: game.toFEN(),
+                };
             }""")
-            fail_if(invalid_fen_result["accepted"], "Malformed FEN should not load")
+            fail_if(invalid_fen_result["malformedAccepted"], "Malformed FEN should not load")
+            fail_if("FEN was not loaded" not in invalid_fen_result["malformedMessage"], "Malformed FEN did not produce actionable status feedback")
+            fail_if(invalid_fen_result["illegalAccepted"], "A position without both kings should not load")
+            fail_if("exactly one king" not in invalid_fen_result["illegalMessage"], "Illegal FEN did not explain the missing kings")
             fail_if(invalid_fen_result["before"] != invalid_fen_result["after"], "Failed FEN parsing replaced the current board")
-            print("PASS valid FEN initializes board, active side, rights, en-passant, and counters safely")
+            print("PASS valid FEN initializes safely; malformed and illegal positions are rejected without replacing the game")
             await page.evaluate("localStorage.removeItem('2d-chess-game:save:v1')")
             await page.reload(wait_until="load")
 

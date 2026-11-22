@@ -17,6 +17,101 @@ function fenSquareName(position) {
 	return `${String.fromCharCode(96 + file)}${rank}`;
 }
 
+function isFENSquareAttacked(targetPosition, attackingColor, pieces) {
+	const targetRank = Math.floor(targetPosition / 10);
+	const targetFile = targetPosition % 10;
+	const occupied = new Set(pieces.map(piece => piece.position));
+	for (const piece of pieces) {
+		if (piece.color !== attackingColor) continue;
+		const sourceRank = Math.floor(piece.position / 10);
+		const sourceFile = piece.position % 10;
+		const rankDelta = targetRank - sourceRank;
+		const fileDelta = targetFile - sourceFile;
+		const absRank = Math.abs(rankDelta);
+		const absFile = Math.abs(fileDelta);
+		if (piece.rank === 'pawn' && absFile === 1 && rankDelta === (attackingColor === 'white' ? 1 : -1)) return true;
+		if (piece.rank === 'knight' && ((absRank === 2 && absFile === 1) || (absRank === 1 && absFile === 2))) return true;
+		if (piece.rank === 'king' && Math.max(absRank, absFile) === 1) return true;
+		const rookRay = (piece.rank === 'rook' || piece.rank === 'queen') && ((rankDelta === 0) !== (fileDelta === 0));
+		const bishopRay = (piece.rank === 'bishop' || piece.rank === 'queen') && absRank === absFile && absRank > 0;
+		if (!rookRay && !bishopRay) continue;
+		const rankStep = Math.sign(rankDelta);
+		const fileStep = Math.sign(fileDelta);
+		let rank = sourceRank + rankStep;
+		let file = sourceFile + fileStep;
+		let blocked = false;
+		while (rank !== targetRank || file !== targetFile) {
+			if (occupied.has(rank * 10 + file)) {
+				blocked = true;
+				break;
+			}
+			rank += rankStep;
+			file += fileStep;
+		}
+		if (!blocked) return true;
+	}
+	return false;
+}
+
+function validateFENPosition(pieces, turn, castlingRights, enPassantTarget) {
+	if (pieces.length > 32) throw new TypeError('FEN cannot contain more than 32 pieces.');
+	const kings = { white: [], black: [] };
+	const pieceCounts = { white: 0, black: 0 };
+	const pawnCounts = { white: 0, black: 0 };
+	const rankCounts = { white: {}, black: {} };
+	const occupied = new Map(pieces.map(piece => [piece.position, piece]));
+	for (const piece of pieces) {
+		pieceCounts[piece.color]++;
+		rankCounts[piece.color][piece.rank] = (rankCounts[piece.color][piece.rank] || 0) + 1;
+		if (piece.rank === 'king') kings[piece.color].push(piece);
+		if (piece.rank === 'pawn') {
+			pawnCounts[piece.color]++;
+			const rank = Math.floor(piece.position / 10);
+			if (rank === 1 || rank === 8) throw new TypeError(`A ${piece.color} pawn cannot be on rank ${rank}; promote it to another piece.`);
+		}
+	}
+	if (kings.white.length !== 1 || kings.black.length !== 1) throw new TypeError('FEN must contain exactly one king of each color.');
+	for (const color of ['white', 'black']) {
+		if (pieceCounts[color] > 16) throw new TypeError(`FEN cannot contain more than 16 ${color} pieces.`);
+		if (pawnCounts[color] > 8) throw new TypeError(`FEN cannot contain more than 8 ${color} pawns.`);
+		const promotionsRequired = Math.max(0, (rankCounts[color].queen || 0) - 1) +
+			Math.max(0, (rankCounts[color].rook || 0) - 2) +
+			Math.max(0, (rankCounts[color].bishop || 0) - 2) +
+			Math.max(0, (rankCounts[color].knight || 0) - 2);
+		if (promotionsRequired > 8 - pawnCounts[color]) {
+			throw new TypeError(`FEN contains more ${color} promoted pieces than missing pawns can support.`);
+		}
+	}
+	const whiteKingPosition = kings.white[0].position;
+	const blackKingPosition = kings.black[0].position;
+	if (Math.max(Math.abs(Math.floor(whiteKingPosition / 10) - Math.floor(blackKingPosition / 10)), Math.abs(whiteKingPosition % 10 - blackKingPosition % 10)) <= 1) {
+		throw new TypeError('The two kings cannot occupy adjacent squares.');
+	}
+	for (const [right, color, rookFile] of [['K', 'white', 8], ['Q', 'white', 1], ['k', 'black', 8], ['q', 'black', 1]]) {
+		if (!castlingRights.includes(right)) continue;
+		const homeRank = color === 'white' ? 1 : 8;
+		const king = occupied.get(homeRank * 10 + 5);
+		const rook = occupied.get(homeRank * 10 + rookFile);
+		if (!king || king.rank !== 'king' || king.color !== color || !rook || rook.rank !== 'rook' || rook.color !== color) {
+			throw new TypeError(`Castling right ${right} requires that side's king on e${homeRank} and rook on ${rookFile === 8 ? 'h' : 'a'}${homeRank}.`);
+		}
+	}
+	if (enPassantTarget !== null) {
+		if (occupied.has(enPassantTarget)) throw new TypeError('The en-passant target square must be empty.');
+		const movedPawnColor = turn === 'black' ? 'white' : 'black';
+		const pawnPosition = enPassantTarget + (turn === 'black' ? 10 : -10);
+		const originPosition = enPassantTarget + (turn === 'black' ? -10 : 10);
+		const pawn = occupied.get(pawnPosition);
+		if (!pawn || pawn.rank !== 'pawn' || pawn.color !== movedPawnColor || occupied.has(originPosition)) {
+			throw new TypeError('The en-passant target must match an opposing pawn that has just advanced two squares.');
+		}
+	}
+	const previousColor = turn === 'white' ? 'black' : 'white';
+	if (isFENSquareAttacked(kings[previousColor][0].position, turn, pieces)) {
+		throw new TypeError(`The ${previousColor} king cannot be in check after that side's move.`);
+	}
+}
+
 function fenCastlingRights(pieces) {
 	let rights = '';
 	for (const color of ['white', 'black']) {
@@ -89,6 +184,7 @@ function serializeGameToFEN(game) {
 
 function parseGameFEN(fen) {
 	if (typeof fen !== 'string' || fen.trim() === '') throw new TypeError('FEN must be a non-empty string.');
+	if (fen.length > 128) throw new TypeError('FEN must be 128 characters or fewer.');
 	const fields = fen.trim().split(/\s+/);
 	if (fields.length !== 6) throw new TypeError('FEN must contain exactly six fields.');
 	const [placement, activeColor, castlingField, enPassantField, halfmoveField, fullmoveField] = fields;
@@ -128,6 +224,7 @@ function parseGameFEN(fen) {
 		}
 		if (file !== 9) throw new TypeError(`FEN rank ${8 - rowIndex} must describe exactly eight squares.`);
 	}
+	validateFENPosition(rawPieces, turn, castlingRights, enPassantTarget);
 
 	const usedNames = new Set();
 	const namedPieces = rawPieces.map(piece => {
@@ -136,22 +233,23 @@ function parseGameFEN(fen) {
 		const file = position % 10;
 		const rightsByColor = color === 'white' ? ['K', 'Q'] : ['k', 'q'];
 		let name;
-			if (rank === 'king') name = `${color}King`;
-			else if (rank === 'rook' && Math.floor(position / 10) === homeRank && file === 1 && castlingRights.includes(rightsByColor[1])) name = `${color}Rook1`;
-			else if (rank === 'rook' && Math.floor(position / 10) === homeRank && file === 8 && castlingRights.includes(rightsByColor[0])) name = `${color}Rook2`;
-			else if (rank === 'pawn' && Math.floor(position / 10) === (color === 'white' ? 2 : 7)) name = `${color}Pawn${file}`;
-			if (!name) {
-				const base = `${color}${rank.charAt(0).toUpperCase()}${rank.slice(1)}`;
-				if (rank === 'queen' && !usedNames.has(base)) name = base;
-				else if (rank === 'queen') {
-					let suffix = 1;
-					while (usedNames.has(`${base}Promoted${suffix}`)) suffix++;
-					name = `${base}Promoted${suffix}`;
-				}
-				else if (['rook', 'pawn', 'bishop', 'knight'].includes(rank)) {
-					const limit = rank === 'pawn' ? 8 : 2;
-					const indices = rank === 'pawn' ? [file, ...Array.from({ length: 8 }, (_, index) => index + 1).filter(index => index !== file)] : Array.from({ length: limit }, (_, index) => index + 1);
-					for (const index of indices) {
+		if (rank === 'king') name = `${color}King`;
+		else if (rank === 'rook' && Math.floor(position / 10) === homeRank && file === 1 && castlingRights.includes(rightsByColor[1])) name = `${color}Rook1`;
+		else if (rank === 'rook' && Math.floor(position / 10) === homeRank && file === 8 && castlingRights.includes(rightsByColor[0])) name = `${color}Rook2`;
+		else if (rank === 'pawn' && Math.floor(position / 10) === (color === 'white' ? 2 : 7)) name = `${color}Pawn${file}`;
+		if (!name) {
+			const base = `${color}${rank.charAt(0).toUpperCase()}${rank.slice(1)}`;
+			if (rank === 'queen' && !usedNames.has(base)) name = base;
+			else if (rank === 'queen') {
+				let suffix = 1;
+				while (usedNames.has(`${base}Promoted${suffix}`)) suffix++;
+				name = `${base}Promoted${suffix}`;
+			}
+			else if (['rook', 'pawn', 'bishop', 'knight'].includes(rank)) {
+				const indices = rank === 'pawn'
+					? [file, ...Array.from({ length: 8 }, (_, index) => index + 1).filter(index => index !== file)]
+					: [1, 2];
+				for (const index of indices) {
 					if (!usedNames.has(`${base}${index}`)) {
 						name = `${base}${index}`;
 						break;

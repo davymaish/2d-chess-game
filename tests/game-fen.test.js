@@ -32,6 +32,7 @@ test('Game.loadFEN initializes parsed state and leaves the game unchanged on par
 	const game = Object.create(Game.prototype);
 	game.clock = null;
 	game.clockPreset = null;
+	game.gameStatus = { textContent: 'White to move.', classList: { remove() {} } };
 	game.pieces = [{ name: 'sentinel', rank: 'king', color: 'white', position: 15 }];
 	game.turn = 'white';
 	game.restoreSavedGame = save => {
@@ -61,4 +62,11 @@ test('Game.loadFEN initializes parsed state and leaves the game unchanged on par
 	const loadedPieces = game.pieces;
 	assert.equal(game.loadFEN('not a FEN'), false);
 	assert.equal(game.pieces, loadedPieces, 'failed parsing does not replace the current board');
+	assert.match(game.gameStatus.textContent, /FEN was not loaded/i);
+	assert.equal(game.loadFEN('4k3/8/8/8/8/8/8/8 w - - 0 1'), false);
+	assert.equal(game.pieces, loadedPieces, 'an illegal position does not replace the current board');
+	assert.match(game.gameStatus.textContent, /exactly one king/i);
+	assert.equal(game.loadFEN('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 100 1'), false);
+	assert.equal(game.pieces, loadedPieces, 'a terminal fifty-move position does not replace the current game');
+	assert.match(game.gameStatus.textContent, /fifty-move draw threshold/i);
 });
