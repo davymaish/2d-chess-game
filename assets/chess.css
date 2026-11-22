@@ -78,6 +78,22 @@ img{
 	background: radial-gradient(circle, #087f70 0 15%, transparent 17%) !important;
 	box-shadow: inset 0 0 0 2px #075e54;
 }
+.allowed-quiet {
+	background: radial-gradient(circle, #087f70 0 15%, transparent 17%) !important;
+	box-shadow: inset 0 0 0 2px #075e54;
+}
+.allowed-capture {
+	background: radial-gradient(circle, #a61b1b 0 42%, transparent 44%) !important;
+	box-shadow: inset 0 0 0 3px #7f1d1d;
+}
+.allowed-en-passant {
+	background: repeating-linear-gradient(135deg, #f3e8ff 0 8px, #9333ea 8px 13px) !important;
+	box-shadow: inset 0 0 0 3px #581c87;
+}
+.allowed-castling {
+	background: radial-gradient(circle, #1d4ed8 0 18%, #dbeafe 20% 100%) !important;
+	box-shadow: inset 0 0 0 3px #1e3a8a;
+}
 .selected-square {
 	background: #ffe082 !important;
 	box-shadow: inset 0 0 0 4px #8a5a00;
