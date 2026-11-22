@@ -4,6 +4,7 @@
   "private": true,
   "description": "Browser-based 2D chess game",
   "scripts": {
-    "test": "node --test"
+    "test": "node --test",
+    "test:responsive": "python3 tests/responsive-layout.py"
   }
 }

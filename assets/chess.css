@@ -16,6 +16,8 @@ h1 {
 	box-sizing: border-box;
 }
 #board{
+	display: grid;
+	grid-template-rows: repeat(8, minmax(0, 1fr));
 	width: 100%;
 	height: auto;
 	aspect-ratio: 1;
@@ -25,10 +27,12 @@ h1 {
 #board > div {
 	display: grid;
 	grid-template-columns: repeat(8, minmax(0, 1fr));
+	min-height: 0;
 }
 #board > div > .square {
 	width: 100%;
-	height: auto;
+	height: 100%;
+	min-height: 0;
 	aspect-ratio: 1;
 	box-sizing:border-box;
 	border: #000 solid .01cm;
