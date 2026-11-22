@@ -50,6 +50,57 @@ function validPositions(groups) {
   return [...groups.flat().filter(onBoard)].sort((a, b) => a - b);
 }
 
+test('last-move highlight marks every origin and destination and replaces the prior move', () => {
+	const makeClassList = () => {
+		const values = new Set();
+		return { add: value => values.add(value), remove: value => values.delete(value), contains: value => values.has(value) };
+	};
+	const squares = new Map([11, 12, 13, 14, 15, 16, 17, 18].map(id => [String(id), { classList: makeClassList() }]));
+	const game = createGame([], null);
+	game.board = { querySelectorAll: selector => selector === '.last-move' ? [...squares.values()].filter(square => square.classList.contains('last-move')) : [] };
+	const originalGetElementById = context.document.getElementById;
+	context.document.getElementById = id => squares.get(String(id)) || null;
+	try {
+		game.setLastMoveHighlight([{ from: 11, to: 13 }, { from: 18, to: 16 }]);
+		assert.deepEqual([...game.lastMove], [11, 13, 18, 16]);
+		assert.equal(squares.get('11').classList.contains('last-move'), true);
+		assert.equal(squares.get('13').classList.contains('last-move'), true);
+		assert.equal(squares.get('18').classList.contains('last-move'), true);
+		assert.equal(squares.get('16').classList.contains('last-move'), true);
+		game.setLastMoveHighlight([{ from: 14, to: 15 }]);
+		assert.equal(squares.get('11').classList.contains('last-move'), false);
+		assert.equal(squares.get('13').classList.contains('last-move'), false);
+		assert.equal(squares.get('14').classList.contains('last-move'), true);
+		assert.equal(squares.get('15').classList.contains('last-move'), true);
+	}
+	finally {
+		context.document.getElementById = originalGetElementById;
+	}
+});
+
+test('undo and redo snapshots preserve last-move squares', () => {
+	const game = createGame([], null);
+	game.lastMove = [11, 13, 18, 16];
+	const snapshot = game.captureMoveState();
+	game.lastMove = [14, 15];
+	game.board = { querySelectorAll: () => [] };
+	game.turn = 'white';
+	game.renderMoveHistory = () => {};
+	game.updateHistoryControls = () => {};
+	game.clearSquares = () => {};
+	game.refreshOutcomeDisplay = () => {};
+	game.setLastMoveHighlight = moves => { game.lastMove = moves.flatMap(move => [move.from, move.to]); };
+	game.restoreMoveState(snapshot);
+	assert.deepEqual([...game.lastMove], [11, 13, 18, 16]);
+	assert.deepEqual([...snapshot.lastMove], [11, 13, 18, 16]);
+});
+
+test('last-move styling layers over square themes and preserves a distinct checked-king ring', () => {
+	const stylesheet = fs.readFileSync(path.join(root, 'assets/chess.css'), 'utf8');
+	assert.match(stylesheet, /#board\s+\.last-move\s*\{[^}]*background-image\s*:/s);
+	assert.match(stylesheet, /#board\s+\.in-check\.last-move\s*\{[^}]*box-shadow\s*:[^}]*#b71c1c/is);
+});
+
 test('rook generates horizontal and vertical moves from a central square', () => {
   const Rook = pieceClass('Rook');
   const rook = new Rook(44, 'whiteRook1');
@@ -747,6 +798,7 @@ test('castling rook movement does not count as an additional half-move', () => {
 
   assert.equal(game.halfmoveClock, 12);
   assert.equal(game.isCastlingRookMove, false);
+  assert.deepEqual({ ...game.pendingCastleRookMove }, { from: 11, to: 14 });
 });
 
 test('the fifty-move draw is reached at 100 half-moves unless checkmate or stalemate takes precedence', () => {

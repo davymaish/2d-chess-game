@@ -22,6 +22,8 @@ class Game {
 		this.redoStack = [];
 		this.pendingUndoEntry = null;
 		this.pendingCaptureState = null;
+		this.lastMove = null;
+		this.pendingCastleRookMove = null;
 		this.halfmoveClock = 0;
 		this.pendingCapture = false;
 		this.isCastlingRookMove = false;
@@ -362,8 +364,14 @@ class Game {
 				this.pendingCapture = false;
 			}
 			this.recordEnPassantOpportunity(clickedPiece, originalPosition, newPosition);
-			square.append(clickedPiece.img);
-			this.clearSquares();
+				square.append(clickedPiece.img);
+				if (!this.isCastlingRookMove) {
+					const moveSquares = [{ from: originalPosition, to: parseInt(newPosition) }];
+					if (this.pendingCastleRookMove) moveSquares.push(this.pendingCastleRookMove);
+					this.pendingCastleRookMove = null;
+					this.setLastMoveHighlight(moveSquares);
+				}
+				this.clearSquares();
 			if (!this.pendingPromotion) this.finishMove(clickedPiece.color);
 		}
 		if (event) event.preventDefault();
@@ -476,6 +484,7 @@ class Game {
 	castleRook(rookName) {
 		const rook = this.getPieceByName(rookName);
 		const newPosition = rookName.indexOf('Rook2') != -1 ? rook.position - 2 : rook.position + 3;
+		this.pendingCastleRookMove = { from: parseInt(rook.position), to: parseInt(newPosition) };
 
 		this.setClickedPiece(rook);
 		const chosenSquare = document.getElementById(newPosition);
@@ -540,6 +549,7 @@ class Game {
 			enPassantPawn: this.enPassantPawn || null,
 			positionCounts: new Map(this.positionCounts || []),
 			moveHistory: [...(this.moveHistory || [])],
+			lastMove: this.lastMove ? [...this.lastMove] : null,
 		};
 	}
 
@@ -609,10 +619,22 @@ class Game {
 		this.enPassantPawn = state.enPassantPawn;
 		this.positionCounts = new Map(state.positionCounts);
 		this.moveHistory = [...state.moveHistory];
+		this.lastMove = state.lastMove ? [...state.lastMove] : null;
 		if (this.turnSign) this.turnSign.innerHTML = this.turn === 'white' ? "White's Turn" : "Black's Turn";
 		this.renderMoveHistory();
 		this.updateHistoryControls();
 		if (typeof this.clearSquares === 'function') this.clearSquares();
+		if (this.lastMove && this.lastMove.length >= 2) {
+			const moves = [];
+			for (let index = 0; index < this.lastMove.length; index += 2) moves.push({ from: this.lastMove[index], to: this.lastMove[index + 1] });
+			this.setLastMoveHighlight(moves);
+		}
+		else {
+			const board = this.board || document.getElementById('board');
+			if (board && typeof board.querySelectorAll === 'function') board.querySelectorAll('.last-move').forEach(square => {
+				if (square.classList && typeof square.classList.remove === 'function') square.classList.remove('last-move');
+			});
+		}
 		this.refreshOutcomeDisplay();
 	}
 
@@ -726,6 +748,20 @@ class Game {
 			if (should_kill_other_piece) this.pieces.push(pieceToCapture);
 			return 0;
 		}
+	}
+
+	setLastMoveHighlight(moves) {
+		this.lastMove = moves.flatMap(move => [parseInt(move.from), parseInt(move.to)]);
+		const board = this.board || document.getElementById('board');
+		if (board && typeof board.querySelectorAll === 'function') {
+			board.querySelectorAll('.last-move').forEach(square => {
+				if (square.classList && typeof square.classList.remove === 'function') square.classList.remove('last-move');
+			});
+		}
+		this.lastMove.forEach(position => {
+			const square = document.getElementById(position);
+			if (square && square.classList && typeof square.classList.add === 'function') square.classList.add('last-move');
+		});
 	}
 
 	king_dead(color) {
