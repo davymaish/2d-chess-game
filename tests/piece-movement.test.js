@@ -147,6 +147,71 @@ test('board flip toggles orientation without replacing squares or pieces and kee
 	}
 });
 
+test('board coordinates and accessible square names stay tied to square identity in both orientations', () => {
+	const makeClassList = (...initial) => {
+		const values = new Set(initial);
+		return { add: value => values.add(value), remove: value => values.delete(value), contains: value => values.has(value) };
+	};
+	const makeSquare = (id, coordinate, ...classes) => {
+		const attributes = { 'data-square': coordinate };
+		return {
+			id,
+			classList: makeClassList(...classes),
+			dataset: {},
+			getAttribute: name => attributes[name] || null,
+			setAttribute(name, value) { attributes[name] = value; },
+			attribute: name => attributes[name],
+		};
+	};
+	const a1 = makeSquare('11', '1-a', 'selected-square');
+	const h8 = makeSquare('88', '8-h', 'allowed-capture', 'last-move');
+	const squares = [a1, h8];
+	const rowClasses = makeClassList('odd');
+	const row = { classList: rowClasses, attributes: {}, setAttribute(name, value) { this.attributes[name] = value; } };
+	const board = {
+		children: [row],
+		attributes: {},
+		dataset: { orientation: 'white' },
+		classList: makeClassList(),
+		offsetWidth: 600,
+		setAttribute(name, value) { this.attributes[name] = value; },
+		querySelectorAll: selector => selector === '.square' ? squares : [],
+	};
+	assert.equal(context.initializeBoardCoordinates(board), true);
+	assert.equal(board.attributes.role, 'grid');
+	assert.equal(board.attributes['aria-label'], 'Chess board');
+	assert.equal(row.attributes.role, 'row');
+	assert.equal(a1.dataset.rank, '1');
+	assert.equal(a1.dataset.file, 'a');
+	assert.equal(a1.attribute('role'), 'gridcell');
+	assert.equal(a1.attribute('aria-label'), 'a1');
+	assert.equal(h8.dataset.rank, '8');
+	assert.equal(h8.dataset.file, 'h');
+	assert.equal(h8.attribute('aria-label'), 'h8');
+
+	const originalGetElementById = context.document.getElementById;
+	context.document.getElementById = id => id === 'board' ? board : id === 'flip-board' ? { setAttribute() {} } : null;
+	try {
+		assert.equal(context.boardAnimate(), 'black');
+		assert.equal(a1.attribute('aria-label'), 'a1');
+		assert.equal(h8.attribute('aria-label'), 'h8');
+		assert.equal(a1.classList.contains('selected-square'), true);
+		assert.equal(h8.classList.contains('allowed-capture'), true);
+		assert.equal(h8.classList.contains('last-move'), true);
+		assert.equal(context.boardAnimate(), 'white');
+		assert.equal(a1.attribute('aria-label'), 'a1');
+		assert.equal(h8.attribute('aria-label'), 'h8');
+	}
+	finally {
+		context.document.getElementById = originalGetElementById;
+	}
+
+	const stylesheet = fs.readFileSync(path.join(root, 'assets/chess.css'), 'utf8');
+	assert.match(stylesheet, /\.square\[data-file="a"\]::before\s*\{[^}]*content:\s*attr\(data-rank\)/s);
+	assert.match(stylesheet, /\.square\[data-rank="1"\]::after\s*\{[^}]*content:\s*attr\(data-file\)/s);
+	assert.match(stylesheet, /\[data-orientation="black"\].*?transform:\s*rotate\(180deg\)/s);
+});
+
 test('rook generates horizontal and vertical moves from a central square', () => {
   const Rook = pieceClass('Rook');
   const rook = new Rook(44, 'whiteRook1');

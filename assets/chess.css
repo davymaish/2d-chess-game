@@ -208,6 +208,35 @@ img{
 	background-image: linear-gradient(rgba(255, 193, 7, 0.28), rgba(255, 193, 7, 0.28));
 	box-shadow: inset 0 0 0 3px #8a5a00, inset 0 0 0 7px #b71c1c;
 }
+#board .square {
+	position: relative;
+}
+#board .square[data-file="a"]::before,
+#board .square[data-rank="1"]::after {
+	position: absolute;
+	z-index: 1;
+	padding: 0.1rem 0.22rem;
+	border-radius: 2px;
+	background: rgba(0, 0, 0, 0.72);
+	color: #fff;
+	font: 700 0.65rem/1 system-ui, sans-serif;
+	text-shadow: 0 1px 1px #000;
+	pointer-events: none;
+}
+#board .square[data-file="a"]::before {
+	content: attr(data-rank);
+	top: 2px;
+	left: 2px;
+}
+#board .square[data-rank="1"]::after {
+	content: attr(data-file);
+	right: 2px;
+	bottom: 2px;
+}
+#board[data-orientation="black"] .square::before,
+#board[data-orientation="black"] .square::after {
+	transform: rotate(180deg);
+}
 .game-status {
 	clear: both;
 	min-height: 1.5em;
