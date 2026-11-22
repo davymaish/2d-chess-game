@@ -944,15 +944,52 @@ test('finishMove records repeated positions and announces the third occurrence',
 });
 
 
-test('move history formats quiet moves, captures, castling, and promotion', () => {
+test('move history formats SAN for quiet moves, captures, castling, promotion, and check', () => {
   const game = createGame([], null);
-
-  assert.equal(game.formatMove({ rank: 'pawn', from: 25, to: 45, isCapture: false }), 'e2-e4');
-  assert.equal(game.formatMove({ rank: 'pawn', from: 55, to: 66, isCapture: true }), 'e5xf6');
-  assert.equal(game.formatMove({ rank: 'knight', from: 17, to: 36, isCapture: false }), 'Ng1-f3');
+  assert.equal(game.formatMove({ rank: 'pawn', from: 25, to: 45, isCapture: false }), 'e4');
+  assert.equal(game.formatMove({ rank: 'pawn', from: 55, to: 66, isCapture: true }), 'exf6');
+  assert.equal(game.formatMove({ rank: 'knight', from: 17, to: 36, isCapture: false }), 'Nf3');
   assert.equal(game.formatMove({ rank: 'king', from: 15, to: 17, isCapture: false }), 'O-O');
   assert.equal(game.formatMove({ rank: 'king', from: 15, to: 13, isCapture: false }), 'O-O-O');
-  assert.equal(game.formatMove({ rank: 'pawn', from: 78, to: 88, isCapture: false, promotion: 'queen' }), 'h7-h8=Q');
+  assert.equal(game.formatMove({ rank: 'pawn', from: 78, to: 88, isCapture: false, promotion: 'queen' }), 'h8=Q');
+  assert.equal(game.formatMove({ rank: 'knight', from: 22, to: 43, isCapture: false, disambiguation: 'b' }), 'Nbc4');
+  assert.equal(game.formatMove({ rank: 'queen', from: 15, to: 55, isCapture: false, checkSuffix: '+' }), 'Qe5+');
+  assert.equal(game.formatMove({ rank: 'queen', from: 15, to: 55, isCapture: true, checkSuffix: '#' }), 'Qxe5#');
+});
+
+test('SAN disambiguation considers legal same-color pieces and chooses file, rank, or full origin', () => {
+  const King = pieceClass('King');
+  const Knight = pieceClass('Knight');
+
+  const fileGame = createGame([
+    new King(11, 'whiteKing'), new King(88, 'blackKing'),
+    new Knight(22, 'whiteKnight1'), new Knight(24, 'whiteKnight2'),
+  ], null);
+  assert.equal(fileGame.getMoveDisambiguation(fileGame.pieces[2], 43), 'b');
+
+  const rankGame = createGame([
+    new King(11, 'whiteKing'), new King(88, 'blackKing'),
+    new Knight(22, 'whiteKnight1'), new Knight(62, 'whiteKnight2'),
+  ], null);
+  assert.equal(rankGame.getMoveDisambiguation(rankGame.pieces[2], 43), '2');
+
+  const fullSquareGame = createGame([
+    new King(11, 'whiteKing'), new King(88, 'blackKing'),
+    new Knight(23, 'whiteKnight1'), new Knight(63, 'whiteKnight2'), new Knight(25, 'whiteKnight3'),
+  ], null);
+  assert.equal(fullSquareGame.getMoveDisambiguation(fullSquareGame.pieces[2], 44), 'c2');
+});
+
+test('SAN disambiguation ignores a same-type piece pinned to its king', () => {
+  const King = pieceClass('King');
+  const Rook = pieceClass('Rook');
+  const whiteRook = new Rook(21, 'whiteRook1');
+  const game = createGame([
+    new King(15, 'whiteKing'), new King(88, 'blackKing'),
+    whiteRook, new Rook(25, 'whiteRook2'), new Rook(85, 'blackRook1'),
+  ], whiteRook);
+
+  assert.equal(game.getMoveDisambiguation(whiteRook, 24), '');
 });
 
 test('move history displays moves in chronological order with full-move numbers', () => {
@@ -977,7 +1014,7 @@ test('move history displays moves in chronological order with full-move numbers'
     context.document.createElement = originalCreateElement;
   }
 
-  assert.deepEqual(items, ['1. e2-e4', '1... e7-e5', '2. Ng1-f3']);
+  assert.deepEqual(items, ['1. e4', '1... e5', '2. Nf3']);
   assert.equal(game.emptyMoveHistory.hidden, true);
   assert.equal(game.moveList.scrollTop, game.moveList.scrollHeight);
 });
@@ -1001,4 +1038,21 @@ test('finishMove commits a completed move but skips a nested castling rook move'
   game.isCastlingRookMove = true;
   game.finishMove('white');
   assert.equal(recorded.length, 1, 'nested castling completion must not add an extra history entry');
+});
+
+test('finishMove appends the checkmate marker to SAN history', () => {
+  const game = createGame([], null);
+  const recorded = [];
+  game.isCastlingRookMove = false;
+  game.pendingHistoryMove = { color: 'white', rank: 'queen', from: 15, to: 55, isCapture: false };
+  game.recordMoveHistory = (move) => recorded.push(move.checkSuffix);
+  game.changeTurn = () => { game.turn = 'black'; };
+  game.turn = 'white';
+  game.recordPosition = () => {};
+  game.getGameOutcome = () => 'checkmate';
+  game.updateCheckStatus = () => {};
+  game.checkmate = () => {};
+  game.finishMove('white');
+  assert.deepEqual(recorded, ['#']);
+  assert.equal(game.pendingHistoryMove, null);
 });

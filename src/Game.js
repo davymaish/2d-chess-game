@@ -275,6 +275,7 @@ class Game {
 
 			const newPosition = square.getAttribute('id');
 			const originalPosition = parseInt(clickedPiece.position);
+			const disambiguation = this.getMoveDisambiguation(clickedPiece, newPosition);
 			const enPassantCapture = this.getEnPassantCapture(newPosition);
 			if (enPassantCapture) this.capturePiece(enPassantCapture);
 			const isCapture = Boolean(this.pendingCapture || enPassantCapture);
@@ -290,6 +291,7 @@ class Game {
 					to: parseInt(newPosition),
 					isCapture,
 					promotion: null,
+					disambiguation,
 				};
 				this.recordHalfmove(clickedPiece, isCapture);
 				this.pendingCapture = false;
@@ -303,13 +305,14 @@ class Game {
 	}
 
 	finishMove(movingColor) {
-		if (!this.isCastlingRookMove && this.pendingHistoryMove) {
-			this.recordMoveHistory(this.pendingHistoryMove);
-			this.pendingHistoryMove = null;
-		}
 		this.changeTurn();
 		if (!this.isCastlingRookMove) this.recordPosition();
 		const outcome = this.getGameOutcome(this.turn);
+		if (!this.isCastlingRookMove && this.pendingHistoryMove) {
+			this.pendingHistoryMove.checkSuffix = outcome === 'checkmate' ? '#' : outcome === 'check' ? '+' : '';
+			this.recordMoveHistory(this.pendingHistoryMove);
+			this.pendingHistoryMove = null;
+		}
 		this.updateCheckStatus(outcome === 'check' || outcome === 'checkmate');
 		if (outcome === 'checkmate') this.checkmate(movingColor);
 		else if (outcome === 'stalemate') this.stalemate();
@@ -322,13 +325,48 @@ class Game {
 		const squareName = position => `${String.fromCharCode(96 + position % 10)}${Math.floor(position / 10)}`;
 		const from = parseInt(move.from);
 		const to = parseInt(move.to);
+		let notation;
 		if (move.rank === 'king' && Math.abs(to - from) === 2) {
-			return to > from ? 'O-O' : 'O-O-O';
+			notation = to > from ? 'O-O' : 'O-O-O';
 		}
-		const pieceLetter = { king: 'K', queen: 'Q', rook: 'R', bishop: 'B', knight: 'N' }[move.rank] || '';
-		const separator = move.isCapture ? 'x' : '-';
-		const promotion = move.promotion ? `=${move.promotion.charAt(0).toUpperCase()}` : '';
-		return `${pieceLetter}${squareName(from)}${separator}${squareName(to)}${promotion}`;
+		else {
+			const pieceLetter = { king: 'K', queen: 'Q', rook: 'R', bishop: 'B', knight: 'N' }[move.rank] || '';
+			const origin = move.rank === 'pawn'
+				? (move.isCapture ? String.fromCharCode(96 + from % 10) : '')
+				: (move.disambiguation || '');
+			const separator = move.isCapture ? 'x' : '';
+			const promotion = move.promotion ? `=${move.promotion.charAt(0).toUpperCase()}` : '';
+			notation = `${pieceLetter}${origin}${separator}${squareName(to)}${promotion}`;
+		}
+		return `${notation}${move.checkSuffix || ''}`;
+	}
+	getMoveDisambiguation(movingPiece, targetPosition) {
+		if (movingPiece.rank === 'pawn' || movingPiece.rank === 'king') return '';
+		const target = parseInt(targetPosition);
+		const previousPiece = this.clickedPiece;
+		const alternatives = [];
+		try {
+			for (const candidate of this.pieces) {
+				if (candidate === movingPiece || candidate.color !== movingPiece.color || candidate.rank !== movingPiece.rank) continue;
+				this.setClickedPiece(candidate);
+				const legalMoves = this.unblockedPositions(
+					candidate.getAllowedMoves(), candidate.position, candidate.color, true
+				);
+				if (legalMoves.includes(target)) alternatives.push(candidate);
+			}
+		}
+		finally {
+			this.setClickedPiece(previousPiece);
+		}
+		if (alternatives.length === 0) return '';
+		const file = String.fromCharCode(96 + parseInt(movingPiece.position) % 10);
+		const rank = String(Math.floor(parseInt(movingPiece.position) / 10));
+		const competitors = [movingPiece, ...alternatives];
+		const sharesFile = competitors.some(piece => piece !== movingPiece && parseInt(piece.position) % 10 === parseInt(movingPiece.position) % 10);
+		const sharesRank = competitors.some(piece => piece !== movingPiece && Math.floor(parseInt(piece.position) / 10) === Math.floor(parseInt(movingPiece.position) / 10));
+		if (!sharesFile) return file;
+		if (!sharesRank) return rank;
+		return `${file}${rank}`;
 	}
 
 	recordMoveHistory(move) {
