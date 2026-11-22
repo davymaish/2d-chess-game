@@ -664,6 +664,15 @@ test('mobile layout uses a fluid square grid and keeps captured pieces and contr
 	assert.match(stylesheet, /@media\s*\(max-width:\s*640px\)[\s\S]*?\.game-controls\s*\{[^}]*flex-wrap:\s*wrap/s);
 });
 
+test('phone controls and sound preference expose comfortable touch targets', () => {
+	const stylesheet = fs.readFileSync(path.join(root, 'assets/chess.css'), 'utf8');
+	const mobileStyles = stylesheet.split('@media (max-width: 640px)')[1].split('@media (prefers-reduced-motion')[0];
+	assert.match(mobileStyles, /\.game-controls button,[\s\S]*?#endscene \.restart-game\s*\{[^}]*min-width:\s*44px[^}]*min-height:\s*44px/s);
+	assert.match(mobileStyles, /\.sound-setting\s*\{[^}]*min-height:\s*44px/s);
+	assert.match(mobileStyles, /\.sound-setting input\s*\{[^}]*width:\s*1\.5rem[^}]*height:\s*1\.5rem/s);
+	assert.match(mobileStyles, /\.history-controls button\s*\{[^}]*flex:\s*1/s);
+});
+
 test('keyboard boundary, finished-game, and unavailable sound-storage states fail safely', () => {
 	const square = {
 		id: '11',

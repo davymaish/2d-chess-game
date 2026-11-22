@@ -7,7 +7,7 @@ _The game in action._
 
 ## Features
 
-- Responsive design: the board keeps a square 8×8 grid on narrow phone screens, captured-piece trays move below it, and essential controls wrap without requiring horizontal scrolling
+- Responsive design: the board keeps a square 8×8 grid on narrow phone screens, captured-piece trays move below it, and essential controls wrap without requiring horizontal scrolling; mobile buttons and selectors have 44px minimum targets with extra spacing
 - Flip Board control to change viewpoints without changing square or piece identities
 - Algebraic rank/file coordinates and screen-reader names remain attached to the same squares when the board is flipped
 - Accessible chess clock with Bullet/Blitz/Rapid presets, active-side readouts, and start/pause/resume controls
