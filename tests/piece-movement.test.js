@@ -1881,6 +1881,68 @@ test('confirming resignation announces the winner and ends the game', () => {
   assert.equal(game.resignButton.disabled, true);
 });
 
+test('timeout material detection distinguishes possible mates from bare-king and same-color-bishop cases', () => {
+	const King = pieceClass('King');
+	const Bishop = pieceClass('Bishop');
+	const Knight = pieceClass('Knight');
+	const Rook = pieceClass('Rook');
+	const Pawn = pieceClass('Pawn');
+	const examples = [
+		{ pieces: [new King(11, 'whiteKing'), new King(88, 'blackKing'), new Knight(23, 'blackKnight1')], expected: false },
+		{ pieces: [new King(11, 'whiteKing'), new King(88, 'blackKing'), new Bishop(11, 'blackBishop1'), new Bishop(33, 'blackBishop2')], expected: false },
+		{ pieces: [new King(11, 'whiteKing'), new King(88, 'blackKing'), new Bishop(11, 'blackBishop1'), new Bishop(32, 'blackBishop2')], expected: true },
+		{ pieces: [new King(11, 'whiteKing'), new King(88, 'blackKing'), new Bishop(23, 'blackBishop1'), new Knight(24, 'blackKnight1')], expected: true },
+		{ pieces: [new King(11, 'whiteKing'), new King(88, 'blackKing'), new Rook(23, 'blackRook1')], expected: true },
+		{ pieces: [new King(11, 'whiteKing'), new King(88, 'blackKing'), new Pawn(23, 'blackPawn1')], expected: true },
+	];
+	for (const example of examples) {
+		const game = createGame(example.pieces, null);
+		assert.equal(game.hasMatingMaterial('black'), example.expected);
+	}
+});
+
+test('clock flag falls produce a draw when the opponent has no mating material and stop the clock', () => {
+	const King = pieceClass('King');
+	const Rook = pieceClass('Rook');
+	let now = 0;
+	const messages = [];
+	const classes = () => {
+		const values = new Set();
+		return { add: value => values.add(value), remove: value => values.delete(value), contains: value => values.has(value) };
+	};
+	const result = { textContent: '' };
+	const endScene = { classList: classes(), getElementsByClassName: () => [result] };
+	const originalGetElementById = context.document.getElementById;
+	context.document.getElementById = id => id === 'endscene' ? endScene : null;
+	try {
+		const game = createGame([
+			new King(15, 'whiteKing'), new King(85, 'blackKing'), new Rook(11, 'whiteRook1'),
+		], null);
+		game.turn = 'white';
+		game.gameStatus = { textContent: '', classList: classes() };
+		game.updateHistoryControls = () => {};
+		const clock = new (pieceClass('ChessClock'))({
+			whiteSeconds: 1,
+			blackSeconds: 10,
+			now: () => now,
+			setTimer: () => 1,
+			clearTimer() {},
+			onFlag: value => messages.push(value),
+		});
+		assert.equal(game.attachClock(clock), true);
+		now = 1200;
+		assert.equal(clock.tick(), false);
+		assert.equal(result.textContent, 'White ran out of time. Draw — Black cannot checkmate.');
+		assert.equal(game.gameStatus.textContent, result.textContent);
+		assert.equal(game.gameOver, true);
+		assert.equal(clock.running, false);
+		assert.deepEqual(messages.map(value => ({ ...value })), [{ flaggedColor: 'white', winner: 'black' }]);
+	}
+	finally {
+		context.document.getElementById = originalGetElementById;
+	}
+});
+
 test('finished games reject moves and undo/redo actions', () => {
   const game = createGame([], null);
   game.gameOver = true;
