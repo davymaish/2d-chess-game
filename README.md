@@ -14,6 +14,7 @@ _The game in action._
 - Optional, muted-by-default move, capture, check, and game-end cues with a saved sound preference
 - Keyboard board navigation with arrow keys, Enter/Space activation, Escape cancellation, and visible focus
 - Board cells expose their algebraic coordinate and current piece; piece images receive meaningful alternative text
+- Reduced-motion, higher-contrast, and forced-colors modes respect operating-system accessibility settings
 - Distinguishes the selected piece from its legal destinations and announces the destination squares to screen readers
 - Uses separate markers and spoken labels for quiet moves, captures, en passant, and castling
 - Highlights the previous move's origin and destination; castling marks both king and rook squares, with checked-king styling kept distinct
