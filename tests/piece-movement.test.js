@@ -1474,3 +1474,86 @@ test('finishMove appends the checkmate marker to SAN history', () => {
   assert.deepEqual(recorded, ['#']);
   assert.equal(game.pendingHistoryMove, null);
 });
+
+test('starting a new game asks before discarding recorded progress', () => {
+  const game = createGame([], null);
+  game.moveHistory = ['1. e4'];
+  game.undoStack = [{}];
+  const originalWindow = context.window;
+  let prompt;
+  let reloads = 0;
+  context.window = {
+    confirm: (message) => { prompt = message; return false; },
+    location: { reload: () => { reloads += 1; } },
+  };
+  try {
+    assert.equal(game.startNewGame(), false);
+  }
+  finally {
+    if (originalWindow === undefined) delete context.window;
+    else context.window = originalWindow;
+  }
+  assert.equal(prompt, 'Start a new game? The current game and move history will be discarded.');
+  assert.equal(reloads, 0);
+  assert.equal(game.moveHistory.length, 1);
+});
+
+test('confirming a new game reloads to the starting position', () => {
+  const game = createGame([], null);
+  game.moveHistory = ['1. e4'];
+  const originalWindow = context.window;
+  let reloads = 0;
+  context.window = {
+    confirm: () => true,
+    location: { reload: () => { reloads += 1; } },
+  };
+  try {
+    assert.equal(game.startNewGame(), true);
+  }
+  finally {
+    if (originalWindow === undefined) delete context.window;
+    else context.window = originalWindow;
+  }
+  assert.equal(reloads, 1);
+});
+
+test('a pristine new game restarts without an unnecessary discard prompt', () => {
+  const game = createGame([], null);
+  game.moveHistory = [];
+  game.undoStack = [];
+  const originalWindow = context.window;
+  let prompts = 0;
+  let reloads = 0;
+  context.window = {
+    confirm: () => { prompts += 1; return false; },
+    location: { reload: () => { reloads += 1; } },
+  };
+  try {
+    assert.equal(game.startNewGame(), true);
+  }
+  finally {
+    if (originalWindow === undefined) delete context.window;
+    else context.window = originalWindow;
+  }
+  assert.equal(prompts, 0);
+  assert.equal(reloads, 1);
+});
+
+test('new-game control invokes the reset flow when activated', () => {
+  const game = createGame([], null);
+  let listener;
+  const originalGetElementById = context.document.getElementById;
+  context.document.getElementById = (id) => id === 'new-game'
+    ? { addEventListener: (type, callback) => { assert.equal(type, 'click'); listener = callback; } }
+    : null;
+  let starts = 0;
+  game.startNewGame = () => { starts += 1; };
+  try {
+    game.addGameControls();
+    listener();
+  }
+  finally {
+    context.document.getElementById = originalGetElementById;
+  }
+  assert.equal(starts, 1);
+});

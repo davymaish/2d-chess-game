@@ -32,6 +32,7 @@ class Game {
 		this.allowedMoves = null;
 		this.addEventListeners();
 		this.addHistoryControls();
+		this.addGameControls();
 		this.whiteSematary = document.getElementById('whiteSematary');
 		this.blackSematary = document.getElementById('blackSematary');
 		this.updateCheckStatus();
@@ -613,6 +614,20 @@ class Game {
 	updateHistoryControls() {
 		if (this.undoButton) this.undoButton.disabled = !this.undoStack || this.undoStack.length === 0;
 		if (this.redoButton) this.redoButton.disabled = !this.redoStack || this.redoStack.length === 0;
+	}
+
+	addGameControls() {
+		this.newGameButton = document.getElementById('new-game');
+		if (this.newGameButton) this.newGameButton.addEventListener('click', () => this.startNewGame());
+	}
+
+	startNewGame() {
+		const hasProgress = (this.moveHistory && this.moveHistory.length > 0) ||
+			Boolean(this.pendingPromotion || this.pendingHistoryMove) ||
+			(this.undoStack && this.undoStack.length > 0);
+		if (hasProgress && !window.confirm('Start a new game? The current game and move history will be discarded.')) return false;
+		window.location.reload();
+		return true;
 	}
 
 	myKingChecked(pos, kill=true, capturedPiece=null){

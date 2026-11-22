@@ -12,6 +12,7 @@ _The game in action._
 - Moves validations
 - Animated display of checkmate and winner
 - Undo and redo controls with Ctrl/Cmd+Z, Ctrl/Cmd+Y, and Ctrl/Cmd+Shift+Z shortcuts
+- New Game action that confirms before discarding a game with recorded progress
 
 ## Installation
 
@@ -24,7 +25,8 @@ _The game in action._
 2. Click a piece and valid moves would be highlighted
 3. Select a square and the piece will move to that square
 4. Use the Undo and Redo buttons, or Ctrl/Cmd+Z and Ctrl/Cmd+Y (Ctrl/Cmd+Shift+Z also redoes), to navigate recent moves.
-5. The game displays the winner when the king is checked.
+5. Choose New Game to reset the board; confirm first if the current game has progress.
+6. The game displays the winner when the king is checked.
 
 ## Running Tests
 
