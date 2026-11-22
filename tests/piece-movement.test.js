@@ -801,3 +801,144 @@ test('finishMove announces the fifty-move draw in the end scene and live status'
     context.document.getElementById = originalGetElementById;
   }
 });
+
+test('threefold repetition is counted only when the same position occurs three times', () => {
+  const King = pieceClass('King');
+  const Rook = pieceClass('Rook');
+  const whiteKing = new King(15, 'whiteKing');
+  const blackKing = new King(85, 'blackKing');
+  const rook = new Rook(11, 'whiteRook1');
+  const game = createGame([whiteKing, blackKing, rook], whiteKing);
+  game.turn = 'white';
+  game.positionCounts = new Map();
+
+  game.recordPosition();
+  assert.equal(game.hasThreefoldRepetition(), false);
+  game.recordPosition();
+  assert.equal(game.hasThreefoldRepetition(), false);
+  game.recordPosition();
+  assert.equal(game.hasThreefoldRepetition(), true);
+});
+
+test('repetition identity includes side to move and castling rights', () => {
+  const King = pieceClass('King');
+  const Rook = pieceClass('Rook');
+  const whiteKing = new King(15, 'whiteKing');
+  const blackKing = new King(85, 'blackKing');
+  const rook = new Rook(11, 'whiteRook1');
+  const game = createGame([whiteKing, blackKing, rook], whiteKing);
+  game.turn = 'white';
+  game.enPassantTarget = null;
+  game.enPassantPawn = null;
+  const initialPosition = game.getPositionKey();
+
+  game.turn = 'black';
+  assert.notEqual(game.getPositionKey(), initialPosition);
+  game.turn = 'white';
+  whiteKing.ableToCastle = false;
+  assert.notEqual(game.getPositionKey(), initialPosition);
+});
+
+test('en passant affects repetition identity only when a legal capture is available', () => {
+  const King = pieceClass('King');
+  const Pawn = pieceClass('Pawn');
+  const Rook = pieceClass('Rook');
+  const whiteKing = new King(15, 'whiteKing');
+  const blackKing = new King(88, 'blackKing');
+  const whitePawn = new Pawn(55, 'whitePawn5');
+  const blackPawn = new Pawn(56, 'blackPawn6');
+  const game = createGame([whiteKing, blackKing, whitePawn, blackPawn], whitePawn);
+  game.turn = 'white';
+  game.enPassantTarget = null;
+  game.enPassantPawn = null;
+  const withoutOpportunity = game.getPositionKey();
+
+  game.recordEnPassantOpportunity(blackPawn, 76, 56);
+  assert.notEqual(game.getPositionKey(), withoutOpportunity);
+
+  const noAdjacentPawn = createGame([whiteKing, blackKing, blackPawn], null);
+  noAdjacentPawn.turn = 'white';
+  const noAdjacentPawnWithoutOpportunity = noAdjacentPawn.getPositionKey();
+  noAdjacentPawn.recordEnPassantOpportunity(blackPawn, 76, 56);
+  assert.equal(noAdjacentPawn.getPositionKey(), noAdjacentPawnWithoutOpportunity);
+
+  const pinnedKing = new King(51, 'whiteKing');
+  const pinnedWhitePawn = new Pawn(55, 'whitePawn5');
+  const pinnedBlackPawn = new Pawn(56, 'blackPawn6');
+  const pinnedRook = new Rook(58, 'blackRook1');
+  const pinnedGame = createGame([
+    pinnedKing,
+    new King(88, 'blackKing'),
+    pinnedWhitePawn,
+    pinnedBlackPawn,
+    pinnedRook,
+  ], null);
+  pinnedGame.turn = 'white';
+  const pinnedPositionWithoutOpportunity = pinnedGame.getPositionKey();
+  pinnedGame.recordEnPassantOpportunity(pinnedBlackPawn, 76, 56);
+  assert.equal(pinnedGame.getPositionKey(), pinnedPositionWithoutOpportunity);
+});
+
+test('threefold repetition is classified after checkmate, stalemate, and other draw rules', () => {
+  const King = pieceClass('King');
+  const Rook = pieceClass('Rook');
+  const whiteKing = new King(15, 'whiteKing');
+  const game = createGame([whiteKing, new King(85, 'blackKing'), new Rook(11, 'whiteRook1')], whiteKing);
+  game.king_checked = () => false;
+  game.king_dead = () => false;
+  game.hasInsufficientMaterial = () => false;
+  game.halfmoveClock = 0;
+  game.hasThreefoldRepetition = () => true;
+
+  assert.equal(game.getGameOutcome('black'), 'threefold-repetition');
+  game.king_dead = () => true;
+  assert.equal(game.getGameOutcome('black'), 'stalemate');
+  game.king_checked = () => true;
+  assert.equal(game.getGameOutcome('black'), 'checkmate');
+});
+
+test('finishMove records repeated positions and announces the third occurrence', () => {
+  const King = pieceClass('King');
+  const Rook = pieceClass('Rook');
+  const game = createGame([
+    new King(15, 'whiteKing'),
+    new King(85, 'blackKing'),
+    new Rook(11, 'whiteRook1'),
+  ], null);
+  const makeClassList = () => {
+    const values = new Set();
+    return {
+      add: (value) => values.add(value),
+      remove: (value) => values.delete(value),
+      contains: (value) => values.has(value),
+    };
+  };
+  const message = { textContent: '' };
+  const endScene = {
+    classList: makeClassList(),
+    getElementsByClassName: () => [message],
+  };
+  const originalGetElementById = context.document.getElementById;
+  context.document.getElementById = (id) => id === 'endscene' ? endScene : null;
+  game.turn = 'white';
+  game.positionCounts = new Map();
+  game.recordPosition();
+  game.changeTurn = () => { game.turn = game.turn === 'white' ? 'black' : 'white'; };
+  game.king_checked = () => false;
+  game.king_dead = () => false;
+  game.hasInsufficientMaterial = () => false;
+  game.halfmoveClock = 0;
+  game.gameStatus = { textContent: '', classList: makeClassList() };
+  game.updateCheckStatus = () => {};
+
+  try {
+    for (let index = 0; index < 4; index += 1) game.finishMove('black');
+  }
+  finally {
+    context.document.getElementById = originalGetElementById;
+  }
+
+  assert.equal(message.textContent, 'Draw by threefold repetition.');
+  assert.equal(game.gameStatus.textContent, 'Draw by threefold repetition.');
+  assert.equal(endScene.classList.contains('show'), true);
+});
