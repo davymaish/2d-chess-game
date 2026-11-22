@@ -680,6 +680,7 @@ class Game {
 		const currentIndex = this.replayCursor ? this.replayCursor.index : -1;
 		this.replayCursor = new ReplayCursor(this.moveHistory || []);
 		if (currentIndex >= 0 && currentIndex < this.replayCursor.moves.length) this.replayCursor.seek(currentIndex);
+		this.updateReplayControls();
 		return this.replayCursor.getState();
 	}
 
@@ -913,6 +914,16 @@ class Game {
 		this.redoButton = document.getElementById('redo-move');
 		if (this.undoButton) this.undoButton.addEventListener('click', () => this.undoMove());
 		if (this.redoButton) this.redoButton.addEventListener('click', () => this.redoMove());
+		this.replayButtons = {
+			first: document.getElementById('replay-first'),
+			previous: document.getElementById('replay-previous'),
+			next: document.getElementById('replay-next'),
+			last: document.getElementById('replay-last'),
+		};
+		this.replayPosition = document.getElementById('replay-position');
+		Object.entries(this.replayButtons).forEach(([action, button]) => {
+			if (button && typeof button.addEventListener === 'function') button.addEventListener('click', () => this.navigateReplay(action));
+		});
 		if (document.addEventListener) document.addEventListener('keydown', event => {
 			if (this.pendingPromotion || (!event.ctrlKey && !event.metaKey) || event.altKey) return;
 			const key = event.key.toLowerCase();
@@ -927,7 +938,32 @@ class Game {
 			}
 		});
 		this.updateHistoryControls();
+		this.updateReplayControls();
 	}
+
+	navigateReplay(action) {
+		const cursor = this.replayCursor;
+		if (!cursor) return false;
+		const actions = { first: () => cursor.first(), previous: () => cursor.previous(), next: () => cursor.next(), last: () => cursor.last() };
+		if (!actions[action]) return false;
+		const state = actions[action]();
+		if (state) this.updateReplayControls();
+		return state;
+	}
+
+	updateReplayControls() {
+		if (!this.replayButtons) return false;
+		const state = this.getReplayState();
+		const empty = state.totalMoves === 0;
+		if (this.replayButtons.first) this.replayButtons.first.disabled = empty || state.atStart;
+		if (this.replayButtons.previous) this.replayButtons.previous.disabled = empty || state.atStart;
+		if (this.replayButtons.next) this.replayButtons.next.disabled = empty || state.atEnd;
+		if (this.replayButtons.last) this.replayButtons.last.disabled = empty || state.atEnd;
+		if (this.replayPosition) this.replayPosition.textContent = state.currentMove
+			? `Replay position ${state.index + 1} of ${state.totalMoves}: ${state.currentMove}`
+			: `Replay position: before the first move (${state.totalMoves} ${state.totalMoves === 1 ? 'move' : 'moves'}).`;
+		return state;
+}
 
 	updateHistoryControls() {
 		if (this.undoButton) this.undoButton.disabled = this.gameOver || !this.undoStack || this.undoStack.length === 0;

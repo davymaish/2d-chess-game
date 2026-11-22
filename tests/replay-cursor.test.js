@@ -58,3 +58,36 @@ test('cursor snapshots its input and Game synchronizes completed move history', 
 	assert.equal(game.stepReplay('next').currentMove, '1. e4');
 	assert.equal(game.stepReplay('next'), false);
 });
+
+test('keyboard-focusable replay buttons navigate the cursor and disable at boundaries', () => {
+	const button = () => ({ disabled: false, listeners: {}, addEventListener(type, handler) { this.listeners[type] = handler; }, click() { this.listeners.click(); } });
+	const ids = ['undo-move', 'redo-move', 'replay-first', 'replay-previous', 'replay-next', 'replay-last'];
+	const controls = Object.fromEntries(ids.map(id => [id, button()]));
+	controls['replay-position'] = { textContent: '' };
+	const oldGetElementById = context.document.getElementById;
+	context.document.getElementById = id => controls[id] || null;
+	const game = Object.create(Game.prototype);
+	Object.assign(game, {
+		moveHistory: ['1. e4', '1... e5'], replayCursor: new ReplayCursor(['1. e4', '1... e5']),
+		undoStack: [], redoStack: [], gameOver: false,
+	});
+	try {
+		game.addHistoryControls();
+		assert.equal(controls['replay-first'].disabled, true);
+		assert.equal(controls['replay-previous'].disabled, true);
+		assert.equal(controls['replay-next'].disabled, false);
+		controls['replay-next'].click();
+		assert.equal(game.getReplayState().currentMove, '1. e4');
+		controls['replay-last'].click();
+		assert.equal(game.getReplayState().currentMove, '1... e5');
+		assert.equal(controls['replay-next'].disabled, true);
+		controls['replay-previous'].click();
+		assert.equal(game.getReplayState().index, 0);
+		controls['replay-first'].click();
+		assert.equal(game.getReplayState().index, -1);
+		assert.match(controls['replay-position'].textContent, /before the first move/);
+	}
+	finally {
+		context.document.getElementById = oldGetElementById;
+	}
+});
