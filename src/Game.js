@@ -47,6 +47,7 @@ class Game {
 		this.clickedPiece = null;
 		this.allowedMoves = null;
 		this.addEventListeners();
+		this.addKeyboardControls();
 		this.addHistoryControls();
 		this.addGameControls();
 		this.addClockControls();
@@ -73,6 +74,50 @@ class Game {
 		this.promotionDialog.querySelectorAll('[data-promotion]').forEach(button => {
 			button.addEventListener('click', this.selectPromotion.bind(this));
 		});
+	}
+
+	addKeyboardControls() {
+		if (this.board) this.board.addEventListener('keydown', event => this.handleBoardKeydown(event));
+	}
+
+	focusBoardSquare(square) {
+		if (!square) return false;
+		this.squares.forEach(candidate => candidate.setAttribute('tabindex', candidate === square ? '0' : '-1'));
+		square.focus();
+		return true;
+	}
+
+	handleBoardKeydown(event) {
+		if (this.gameOver || !event || !event.target) return false;
+		const square = typeof event.target.closest === 'function' ? event.target.closest('.square') : event.target;
+		if (!square || !square.id) return false;
+		const rank = Number(square.dataset.rank || Math.floor(Number(square.id) / 10));
+		const file = Number(square.dataset.file ? square.dataset.file.charCodeAt(0) - 96 : Number(square.id) % 10);
+		const directions = { ArrowRight: [0, 1], ArrowLeft: [0, -1], ArrowUp: [1, 0], ArrowDown: [-1, 0] };
+		if (directions[event.key]) {
+			let [rankStep, fileStep] = directions[event.key];
+			if (this.board.dataset && this.board.dataset.orientation === 'black') { rankStep *= -1; fileStep *= -1; }
+			const nextRank = rank + rankStep;
+			const nextFile = file + fileStep;
+			const destination = Array.from(this.squares).find(candidate => Number(candidate.id) === nextRank * 10 + nextFile);
+			if (destination) this.focusBoardSquare(destination);
+			event.preventDefault();
+			return true;
+		}
+		if (event.key === 'Escape') {
+			this.setClickedPiece(null);
+			this.allowedMoves = null;
+			this.clearSquares();
+			event.preventDefault();
+			return true;
+		}
+		if (event.key !== 'Enter' && event.key !== ' ') return false;
+		event.preventDefault();
+		const position = Number(square.id);
+		if (this.clickedPiece && this.allowedMoves && this.allowedMoves.includes(position)) return this.movePiece(null, square);
+		const piece = this.getPieceByPos(position);
+		if (piece && piece.color === this.turn) return this.pieceMove({ target: piece.img, type: 'keyboard' });
+		return false;
 	}
 
 	pieceMove(event) {

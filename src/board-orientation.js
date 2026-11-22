@@ -31,6 +31,7 @@ function initializeBoardCoordinates(board = document.getElementById('board')) {
 	Array.from(board.children || []).forEach(row => {
 		if (row.classList && (row.classList.contains('odd') || row.classList.contains('even'))) row.setAttribute('role', 'row');
 	});
+	let firstSquare = true;
 	board.querySelectorAll('.square').forEach(square => {
 		const match = /^([1-8])-([a-h])$/.exec(square.getAttribute('data-square') || '');
 		if (!match) return;
@@ -39,6 +40,8 @@ function initializeBoardCoordinates(board = document.getElementById('board')) {
 		square.dataset.file = file;
 		square.setAttribute('role', 'gridcell');
 		square.setAttribute('aria-label', `${file}${rank}`);
+		square.setAttribute('tabindex', firstSquare ? '0' : '-1');
+		firstSquare = false;
 	});
 	return true;
 }
