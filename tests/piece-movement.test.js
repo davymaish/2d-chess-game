@@ -503,10 +503,13 @@ test('board coordinates and accessible square names stay tied to square identity
 			setAttribute(name, value) { attributes[name] = value; },
 			attribute: name => attributes[name],
 		};
-	};
-	const a1 = makeSquare('11', '1-a', 'selected-square');
-	const h8 = makeSquare('88', '8-h', 'allowed-capture', 'last-move');
-	const squares = [a1, h8];
+		};
+		const a1 = makeSquare('11', '1-a', 'selected-square');
+		const h8 = makeSquare('88', '8-h', 'allowed-capture', 'last-move');
+		const kingImageAttributes = {};
+		const kingImage = { id: 'blackKing', setAttribute(name, value) { kingImageAttributes[name] = value; } };
+		h8.querySelector = selector => selector === 'img' ? kingImage : null;
+		const squares = [a1, h8];
 	const rowClasses = makeClassList('odd');
 	const row = { classList: rowClasses, attributes: {}, setAttribute(name, value) { this.attributes[name] = value; } };
 	const board = {
@@ -527,9 +530,10 @@ test('board coordinates and accessible square names stay tied to square identity
 	assert.equal(a1.attribute('role'), 'gridcell');
 	assert.equal(a1.attribute('aria-label'), 'a1');
 	assert.equal(a1.attribute('tabindex'), '0', 'one square provides a predictable Tab entry point');
-	assert.equal(h8.dataset.rank, '8');
-	assert.equal(h8.dataset.file, 'h');
-	assert.equal(h8.attribute('aria-label'), 'h8');
+		assert.equal(h8.dataset.rank, '8');
+		assert.equal(h8.dataset.file, 'h');
+		assert.equal(h8.attribute('aria-label'), 'h8, black king');
+		assert.equal(kingImageAttributes.alt, 'black king');
 	assert.equal(h8.attribute('tabindex'), '-1', 'other squares use roving tabindex');
 
 	const originalGetElementById = context.document.getElementById;
@@ -537,13 +541,13 @@ test('board coordinates and accessible square names stay tied to square identity
 	try {
 		assert.equal(context.boardAnimate(), 'black');
 		assert.equal(a1.attribute('aria-label'), 'a1');
-		assert.equal(h8.attribute('aria-label'), 'h8');
+		assert.equal(h8.attribute('aria-label'), 'h8, black king');
 		assert.equal(a1.classList.contains('selected-square'), true);
 		assert.equal(h8.classList.contains('allowed-capture'), true);
 		assert.equal(h8.classList.contains('last-move'), true);
 		assert.equal(context.boardAnimate(), 'white');
 		assert.equal(a1.attribute('aria-label'), 'a1');
-		assert.equal(h8.attribute('aria-label'), 'h8');
+		assert.equal(h8.attribute('aria-label'), 'h8, black king');
 	}
 	finally {
 		context.document.getElementById = originalGetElementById;
@@ -602,6 +606,49 @@ test('keyboard board navigation follows the visible orientation and activates se
 	assert.equal(game.clickedPiece, null);
 	assert.equal(game.allowedMoves, null);
 	assert.equal(cleared, true);
+});
+
+test('board accessible names follow the occupying piece after a move', () => {
+	const makeSquare = id => ({ id: String(id), attributes: {}, setAttribute(name, value) { this.attributes[name] = value; } });
+	const origin = makeSquare(11);
+	const destination = makeSquare(12);
+	const imageAttributes = {};
+	const piece = {
+		position: 11,
+		color: 'white',
+		rank: 'knight',
+		img: { setAttribute(name, value) { imageAttributes[name] = value; } },
+	};
+	const game = createGame([piece], null);
+	game.squares = [origin, destination];
+	assert.equal(game.updateBoardAccessibleNames(), true);
+	assert.equal(origin.attributes['aria-label'], 'a1, white knight');
+	assert.equal(destination.attributes['aria-label'], 'b1');
+	assert.equal(imageAttributes.alt, 'white knight');
+	piece.position = 12;
+	assert.equal(game.updateBoardAccessibleNames(), true);
+	assert.equal(origin.attributes['aria-label'], 'a1');
+	assert.equal(destination.attributes['aria-label'], 'b1, white knight');
+});
+
+test('page controls and live game elements expose accessible names and semantic roles', () => {
+	const markup = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
+	const buttons = [...markup.matchAll(/<button\b([^>]*)>([\s\S]*?)<\/button>/gi)];
+	assert.ok(buttons.length >= 10, 'the page controls are covered by the audit');
+	for (const [, attributes, body] of buttons) {
+		assert.match(attributes, /\btype="button"/i, 'buttons must not submit a form unexpectedly');
+		const visibleName = body.replace(/<[^>]*>/g, '').trim();
+		assert.ok(visibleName || /\baria-label=/i.test(attributes), `button has an accessible name: ${attributes}`);
+	}
+	for (const id of ['game-status', 'selection-status', 'clock-status', 'sound-status']) {
+		assert.match(markup, new RegExp(`<[^>]+id="${id}"[^>]*role="status"`));
+	}
+	assert.match(markup, /class="winning-sign"[^>]*role="alert"/);
+	assert.match(markup, /id="white-clock" role="timer"/);
+	assert.match(markup, /id="black-clock" role="timer"/);
+	assert.match(markup, /id="move-list" class="move-list" role="log"/);
+	assert.match(markup, /<label class="sound-setting"><input id="move-sounds"/);
+	assert.match(markup, /<label for="clock-preset">/);
 });
 
 test('rook generates horizontal and vertical moves from a central square', () => {

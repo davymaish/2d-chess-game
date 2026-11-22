@@ -54,6 +54,7 @@ class Game {
 		this.addSoundControls();
 		this.whiteSematary = document.getElementById('whiteSematary');
 		this.blackSematary = document.getElementById('blackSematary');
+		this.updateBoardAccessibleNames();
 		this.updateCheckStatus();
 	}
 
@@ -84,6 +85,19 @@ class Game {
 		if (!square) return false;
 		this.squares.forEach(candidate => candidate.setAttribute('tabindex', candidate === square ? '0' : '-1'));
 		square.focus();
+		return true;
+	}
+
+	updateBoardAccessibleNames() {
+		if (!this.squares || typeof this.squares.forEach !== 'function') return false;
+		this.squares.forEach(square => {
+			const position = parseInt(square.id);
+			const coordinate = this.getSquareName(position);
+			const piece = this.pieces.find(candidate => parseInt(candidate.position) === position);
+			const description = piece ? `${piece.color} ${piece.rank}` : '';
+			square.setAttribute('aria-label', `${coordinate}${description ? `, ${description}` : ''}`);
+			if (piece && piece.img && typeof piece.img.setAttribute === 'function') piece.img.setAttribute('alt', description);
+		});
 		return true;
 	}
 
@@ -569,6 +583,7 @@ class Game {
 		this.changeTurn();
 		if (!this.isCastlingRookMove && this.clock) this.clock.switchActiveSide(this.turn);
 		if (!this.isCastlingRookMove) this.recordPosition();
+		this.updateBoardAccessibleNames();
 		const outcome = this.getGameOutcome(this.turn);
 		if (outcome === 'check') this.playStatusSound('check');
 		if (!this.isCastlingRookMove && this.pendingHistoryMove) {
@@ -809,9 +824,10 @@ class Game {
 		this.enPassantPawn = state.enPassantPawn;
 		this.positionCounts = new Map(state.positionCounts);
 		this.moveHistory = [...state.moveHistory];
-		this.lastMove = state.lastMove ? [...state.lastMove] : null;
-		if (this.turnSign) this.turnSign.innerHTML = this.turn === 'white' ? "White's Turn" : "Black's Turn";
-		this.renderMoveHistory();
+			this.lastMove = state.lastMove ? [...state.lastMove] : null;
+			if (this.turnSign) this.turnSign.innerHTML = this.turn === 'white' ? "White's Turn" : "Black's Turn";
+			this.updateBoardAccessibleNames();
+			this.renderMoveHistory();
 		this.updateHistoryControls();
 		if (typeof this.clearSquares === 'function') this.clearSquares();
 		if (this.lastMove && this.lastMove.length >= 2) {
