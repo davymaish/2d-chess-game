@@ -297,6 +297,14 @@ test('move sounds default off, persist the user preference, and distinguish capt
 	};
 	context.window = { AudioContext: MockAudioContext };
 	try {
+		values.clear();
+		const defaultGame = createGame([], null);
+		defaultGame.moveSoundsToggle = { checked: true, addEventListener() {} };
+		defaultGame.soundStatus = { textContent: '' };
+		defaultGame.addSoundControls();
+		assert.equal(defaultGame.moveSoundsToggle.checked, false, 'sound is disabled for first-time users');
+		assert.equal(defaultGame.soundStatus.textContent, 'Move sounds are off.');
+		values.set('chess-move-sounds', 'on');
 		const game = createGame([], null);
 		game.moveSoundsToggle = { checked: false, listeners: {}, addEventListener(type, callback) { this.listeners[type] = callback; } };
 		game.soundStatus = { textContent: '' };
@@ -307,6 +315,11 @@ test('move sounds default off, persist the user preference, and distinguish capt
 		assert.equal(frequencies[0].value, 620, 'ordinary moves use the higher, quiet tone');
 		assert.equal(game.playMoveSound(true), true);
 		assert.equal(frequencies[1].value, 300, 'captures use a lower, distinct quiet tone');
+		assert.equal(game.playStatusSound('check'), true);
+		assert.equal(frequencies[2].value, 820, 'check uses its own short cue');
+		assert.equal(game.playStatusSound('game-end'), true);
+		assert.equal(frequencies[3].value, 440, 'terminal results use a distinct low cue');
+		assert.equal(game.playStatusSound('unknown'), false);
 		game.moveSoundsToggle.checked = false;
 		game.moveSoundsToggle.listeners.change();
 		assert.equal(values.get('chess-move-sounds'), 'off');
@@ -332,19 +345,51 @@ test('completed move history dispatches quiet-move and capture cues exactly once
 	game.turnSign = { innerHTML: '' };
 	game.isCastlingRookMove = false;
 	game.recordPosition = () => {};
-	game.getGameOutcome = () => 'ongoing';
+	let outcome = 'ongoing';
+	game.getGameOutcome = () => outcome;
 	game.updateCheckStatus = () => {};
 	game.commitPendingUndoMove = () => {};
 	game.recordMoveHistory = () => {};
 	const soundKinds = [];
+	const statusCues = [];
 	game.playMoveSound = isCapture => soundKinds.push(Boolean(isCapture));
+	game.playStatusSound = kind => statusCues.push(kind);
 	game.pendingHistoryMove = { isCapture: false };
 	game.finishMove('white');
 	assert.equal(game.pendingHistoryMove, null);
 	game.turn = 'black';
+	outcome = 'check';
 	game.pendingHistoryMove = { isCapture: true };
 	game.finishMove('black');
 	assert.deepEqual(soundKinds, [false, true]);
+	assert.deepEqual(statusCues, ['check']);
+});
+
+test('game-end cue plays once through the shared terminal-result path', () => {
+	const result = { textContent: '' };
+	const classes = new Set();
+	const endScene = {
+		getElementsByClassName: () => [result],
+		classList: { add: value => classes.add(value) },
+	};
+	const originalGetElementById = context.document.getElementById;
+	context.document.getElementById = id => id === 'endscene' ? endScene : null;
+	try {
+		const game = createGame([], null);
+		game.gameStatus = { textContent: '', classList: { remove() {} } };
+		game.updateClockControls = () => {};
+		game.updateHistoryControls = () => {};
+		const cues = [];
+		game.playStatusSound = kind => cues.push(kind);
+		assert.equal(game.finishGame('Checkmate. White wins.'), true);
+		assert.equal(game.finishGame('duplicate result'), false);
+		assert.equal(result.textContent, 'Checkmate. White wins.');
+		assert.equal(classes.has('show'), true);
+		assert.deepEqual(cues, ['game-end']);
+	}
+	finally {
+		context.document.getElementById = originalGetElementById;
+	}
 });
 
 test('last-move highlight marks every origin and destination and replaces the prior move', () => {

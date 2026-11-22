@@ -420,6 +420,17 @@ class Game {
 	}
 
 	playMoveSound(isCapture = false) {
+		return this.playSoundTone(isCapture ? 300 : 620, 0.09);
+	}
+
+	playStatusSound(kind) {
+		const cues = { check: [820, 0.12], 'game-end': [440, 0.18] };
+		const cue = cues[kind];
+		if (!cue) return false;
+		return this.playSoundTone(cue[0], cue[1], 0.1);
+	}
+
+	playSoundTone(frequency, duration, delay = 0) {
 		if (!this.moveSoundsToggle || !this.moveSoundsToggle.checked || typeof window === 'undefined') return false;
 		const AudioContextClass = window.AudioContext || window.webkitAudioContext;
 		if (!AudioContextClass) return false;
@@ -427,15 +438,15 @@ class Game {
 			if (!this.soundContext) this.soundContext = new AudioContextClass();
 			const oscillator = this.soundContext.createOscillator();
 			const gain = this.soundContext.createGain();
-			const startAt = this.soundContext.currentTime;
+			const startAt = this.soundContext.currentTime + delay;
 			oscillator.type = 'sine';
-			oscillator.frequency.value = isCapture ? 300 : 620;
+			oscillator.frequency.value = frequency;
 			gain.gain.setValueAtTime(0.035, startAt);
-			gain.gain.exponentialRampToValueAtTime(0.001, startAt + 0.09);
+			gain.gain.exponentialRampToValueAtTime(0.001, startAt + duration);
 			oscillator.connect(gain);
 			gain.connect(this.soundContext.destination);
 			oscillator.start(startAt);
-			oscillator.stop(startAt + 0.09);
+			oscillator.stop(startAt + duration);
 			return true;
 		}
 		catch (error) {
@@ -514,6 +525,7 @@ class Game {
 		if (!this.isCastlingRookMove && this.clock) this.clock.switchActiveSide(this.turn);
 		if (!this.isCastlingRookMove) this.recordPosition();
 		const outcome = this.getGameOutcome(this.turn);
+		if (outcome === 'check') this.playStatusSound('check');
 		if (!this.isCastlingRookMove && this.pendingHistoryMove) {
 			this.pendingHistoryMove.checkSuffix = outcome === 'checkmate' ? '#' : outcome === 'check' ? '+' : '';
 			this.recordMoveHistory(this.pendingHistoryMove);
@@ -853,6 +865,7 @@ class Game {
 	finishGame(message) {
 		if (this.gameOver) return false;
 		this.gameOver = true;
+		this.playStatusSound('game-end');
 		if (this.clock && typeof this.clock.stop === 'function') this.clock.stop();
 		this.updateClockControls();
 		const endScene = document.getElementById('endscene');
