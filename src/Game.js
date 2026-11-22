@@ -13,6 +13,9 @@ class Game {
 		this.promotionDialog = document.getElementById('promotion-dialog');
 		this.pendingPromotion = null;
 		this.promotionCounter = 0;
+		this.halfmoveClock = 0;
+		this.pendingCapture = false;
+		this.isCastlingRookMove = false;
 		this.turnSign = document.getElementById('turn');
 		this.gameStatus = document.getElementById('game-status');
 		this.clickedPiece = null;
@@ -272,6 +275,10 @@ class Game {
 				clickedPiece.changePosition(newPosition, true);
 			else
 				clickedPiece.changePosition(newPosition);
+			if (!this.isCastlingRookMove) {
+				this.recordHalfmove(clickedPiece, this.pendingCapture || Boolean(enPassantCapture));
+				this.pendingCapture = false;
+			}
 			this.recordEnPassantOpportunity(clickedPiece, originalPosition, newPosition);
 			square.append(clickedPiece.img);
 			this.clearSquares();
@@ -287,9 +294,16 @@ class Game {
 		if (outcome === 'checkmate') this.checkmate(movingColor);
 		else if (outcome === 'stalemate') this.stalemate();
 		else if (outcome === 'insufficient-material') this.drawByInsufficientMaterial();
+		else if (outcome === 'fifty-move-draw') this.drawByFiftyMoveRule();
+	}
+
+	recordHalfmove(piece, isCapture) {
+		if (piece.hasRank('pawn') || isCapture) this.halfmoveClock = 0;
+		else this.halfmoveClock = (this.halfmoveClock || 0) + 1;
 	}
 
 	capturePiece(piece) {
+		this.pendingCapture = true;
 		piece.img.parentNode.removeChild(piece.img);
 		piece.img.className = '';
 
@@ -313,7 +327,13 @@ class Game {
 		const chosenSquare = document.getElementById(newPosition);
 		chosenSquare.classList.add('allowed');
 
-		this.movePiece('', chosenSquare );
+		this.isCastlingRookMove = true;
+		try {
+			this.movePiece('', chosenSquare );
+		}
+		finally {
+			this.isCastlingRookMove = false;
+		}
 		this.changeTurn();
 	}
 
@@ -387,6 +407,7 @@ class Game {
 		const noLegalMoves = this.king_dead(color);
 		if (noLegalMoves) return checked ? 'checkmate' : 'stalemate';
 		if (this.hasInsufficientMaterial()) return 'insufficient-material';
+		if (this.halfmoveClock >= 100) return 'fifty-move-draw';
 		return checked ? 'check' : 'ongoing';
 	}
 
@@ -448,6 +469,15 @@ class Game {
 
 	drawByInsufficientMaterial() {
 		const message = 'Draw by insufficient material.';
+		const endScene = document.getElementById('endscene');
+		endScene.getElementsByClassName('winning-sign')[0].textContent = message;
+		this.gameStatus.textContent = message;
+		this.gameStatus.classList.remove('is-check');
+		endScene.classList.add('show');
+	}
+
+	drawByFiftyMoveRule() {
+		const message = 'Draw by the fifty-move rule.';
 		const endScene = document.getElementById('endscene');
 		endScene.getElementsByClassName('winning-sign')[0].textContent = message;
 		this.gameStatus.textContent = message;
