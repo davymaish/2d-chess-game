@@ -223,3 +223,38 @@ img{
 	outline: 3px solid #b2dfdb;
 	outline-offset: 2px;
 }
+
+.move-history {
+	max-width: 600px;
+	margin: 1.25rem auto 0;
+	padding: 0.9rem 1rem;
+	border: 1px solid #aab2b5;
+	border-radius: 0.5rem;
+	background: #f5f6f6;
+	color: #263238;
+	box-sizing: border-box;
+}
+
+.move-history h2 {
+	margin-bottom: 0.6rem;
+	font-size: 1.15rem;
+}
+
+.move-history .move-list {
+	max-height: 12rem;
+	margin: 0;
+	padding: 0 0.5rem 0 2.2rem;
+	overflow-y: auto;
+	font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+	line-height: 1.7;
+}
+
+#move-history-empty {
+	color: #58666b;
+}
+
+@media (max-width: 640px) {
+	.move-history {
+		width: min(94vw, 600px);
+	}
+}
