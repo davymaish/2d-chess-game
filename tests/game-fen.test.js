@@ -47,6 +47,7 @@ test('Game.loadFEN initializes parsed state and leaves the game unchanged on par
 	game.gameStatus = { textContent: 'White to move.', classList: { remove() {} } };
 	game.pieces = [{ name: 'sentinel', rank: 'king', color: 'white', position: 15 }];
 	game.turn = 'white';
+	game.resultToken = '1-0';
 	game.restoreSavedGame = save => {
 		game.restoredSave = save;
 		game.pieces = save.state.pieces;
@@ -67,6 +68,7 @@ test('Game.loadFEN initializes parsed state and leaves the game unchanged on par
 	assert.equal(game.loadFEN('rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 42'), true);
 	assert.equal(game.turn, 'black');
 	assert.equal(game.fullmoveNumber, 42);
+	assert.equal(game.resultToken, '*', 'a newly imported position starts with an unfinished PGN result');
 	assert.equal(game.enPassantPawn.name, 'whitePawn5');
 	assert.equal(game.restoredSave.state.moveHistory.length, 0);
 	assert.equal(game.positionRecorded, true);
