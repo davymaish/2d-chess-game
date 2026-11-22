@@ -51,6 +51,7 @@ class Game {
 		this.addKeyboardControls();
 		this.addHistoryControls();
 		this.addGameControls();
+		this.addFENControls();
 		this.addClockControls();
 		this.addSoundControls();
 		this.whiteSematary = document.getElementById('whiteSematary');
@@ -916,6 +917,53 @@ class Game {
 		if (this.restartButton) this.restartButton.addEventListener('click', () => this.startNewGame());
 	}
 
+	addFENControls() {
+		this.fenInput = document.getElementById('fen-input');
+		this.copyFENButton = document.getElementById('copy-fen');
+		this.loadFENButton = document.getElementById('load-fen');
+		if (this.fenInput) this.fenInput.value = this.toFEN();
+		if (this.copyFENButton) this.copyFENButton.addEventListener('click', () => this.copyCurrentFEN());
+		if (this.loadFENButton) this.loadFENButton.addEventListener('click', () => this.loadFENFromControl());
+	}
+
+	async copyCurrentFEN() {
+		if (!this.fenInput) return false;
+		const fen = this.toFEN();
+		this.fenInput.value = fen;
+		try {
+			if (typeof navigator !== 'undefined' && navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+				await navigator.clipboard.writeText(fen);
+				if (this.gameStatus) this.gameStatus.textContent = 'Current FEN copied to the clipboard.';
+				return true;
+			}
+		}
+		catch (error) {
+			// Continue with the selectable-field fallback when clipboard permissions are unavailable.
+		}
+		this.fenInput.focus();
+		this.fenInput.select();
+		try {
+			if (typeof document.execCommand === 'function') document.execCommand('copy');
+		}
+		catch (error) {
+			// The FEN remains selected so it can still be copied manually.
+		}
+		if (this.gameStatus) this.gameStatus.textContent = 'Current FEN is ready in the field; select and copy it if needed.';
+		return true;
+	}
+
+	loadFENFromControl() {
+		if (!this.fenInput) return false;
+		const initialPosition = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
+		const hasProgress = (this.moveHistory && this.moveHistory.length > 0) ||
+			(this.undoStack && this.undoStack.length > 0) || (this.redoStack && this.redoStack.length > 0) ||
+			this.pendingPromotion || this.pendingHistoryMove || this.clock || this.toFEN() !== initialPosition;
+		if (hasProgress && !window.confirm('Load this FEN and replace the current position, move history, and clock state?')) return false;
+		const loaded = this.loadFEN(this.fenInput.value);
+		if (loaded && this.gameStatus) this.gameStatus.textContent = `FEN position loaded. ${this.gameStatus.textContent}`;
+		return loaded;
+	}
+
 	addSavedGameControls(savedGame, storageStatus = 'missing') {
 		this.savedGameDialog = document.getElementById('saved-game-dialog');
 		this.resumeSavedGameButton = document.getElementById('resume-saved-game');
@@ -949,6 +997,7 @@ class Game {
 		if (this.savedGameDialog && this.savedGameDialog.open) this.savedGameDialog.close();
 		if (this.clearSavedGameButton) this.clearSavedGameButton.hidden = false;
 		if (this.saveStatus) this.saveStatus.textContent = 'Saved game restored. Future moves are saved in this browser.';
+		if (this.fenInput) this.fenInput.value = this.toFEN();
 		return true;
 	}
 
@@ -1296,6 +1345,7 @@ class Game {
 		this.updateHistoryControls();
 		this.updateCheckStatus();
 		this.persistCurrentGame();
+		if (this.fenInput) this.fenInput.value = this.toFEN();
 		return true;
 	}
 

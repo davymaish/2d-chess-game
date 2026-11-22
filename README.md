@@ -26,6 +26,7 @@ _The game in action._
 - New Game action that confirms before discarding a game with recorded progress
 - Resignation with confirmation, an announced result, locked terminal controls, and a restart action
 - Automatically saves stable in-progress games after completed moves; after refresh, choose Resume Saved Game or Start New Game, and clear the saved copy while continuing a resumed game; corrupt or unsupported snapshots are discarded with an accessible notice, while blocked storage never prevents play
+- Collapsible FEN tools copy the current position to the clipboard (or a selectable field) and load valid positions with confirmation before replacing game progress
 
 ## Installation
 
@@ -74,6 +75,8 @@ To use an existing Chromium installation instead of Playwright's downloaded brow
 `Game.toFEN()` serializes the current board as Forsyth–Edwards Notation. It exports piece placement, active color, castling rights that remain available on the original king/rook squares, the en-passant target, and the half-move and full-move counters. The standalone `serializeGameToFEN(game)` helper can also be used by tools and tests; invalid board state or counters are rejected instead of producing malformed FEN.
 
 `parseGameFEN(fen)` parses the six standard FEN fields and rejects impossible piece counts, missing or adjacent kings, pawns on promotion ranks, unsupported castling claims, inconsistent en-passant claims, and positions where the side that just moved left its king in check. `Game.loadFEN(fen)` initializes the board, active side, move counters, castling flags, and en-passant state from a valid FEN string. Active-game loading does not accept positions already at the 100-halfmove draw threshold. A successful import resets the current move history and clock, clears undo/redo history, and saves the imported position when browser storage is available. Invalid or un-restorable input returns `false`, announces a specific reason in the live game-status region, and leaves the current board unchanged.
+
+Use the collapsible **FEN tools** panel to copy the current position or paste a FEN string and load it. Copy refreshes the field from the live board and uses the browser clipboard when permitted; otherwise, the value remains selected for manual copying. Loading a position that differs from a fresh game asks before replacing the board and move history. Successful imports retain the canonical FEN in the field, while invalid positions leave the current game untouched and announce why loading failed.
 
 ## Chess clock model
 

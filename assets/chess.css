@@ -239,7 +239,9 @@ img{
 }
 button:focus-visible,
 select:focus-visible,
-input:focus-visible {
+input:focus-visible,
+textarea:focus-visible,
+.fen-tools summary:focus-visible {
 	outline: 3px solid #00695c;
 	outline-offset: 2px;
 }
@@ -279,6 +281,58 @@ input:focus-visible {
 }
 .game-status.is-check {
 	color: #b71c1c;
+}
+.fen-tools {
+	flex: 1 1 100%;
+	width: min(100%, 32rem);
+	max-width: 100%;
+	margin: 0.25rem auto;
+	padding: 0.65rem 0.75rem;
+	border: 1px solid #aab2b5;
+	border-radius: 0.4rem;
+	background: #f5f6f6;
+	color: #263238;
+	box-sizing: border-box;
+}
+.fen-tools summary {
+	min-height: 2.75rem;
+	padding: 0.55rem 0;
+	font-weight: 700;
+	cursor: pointer;
+}
+.fen-tools label {
+	display: block;
+	margin: 0.35rem 0;
+	font-weight: 600;
+}
+.fen-tools textarea {
+	display: block;
+	width: 100%;
+	min-height: 4.5rem;
+	padding: 0.55rem;
+	border: 1px solid #7f8b8f;
+	border-radius: 0.25rem;
+	background: #fff;
+	color: #172126;
+	box-sizing: border-box;
+	font: 0.9rem/1.45 ui-monospace, SFMono-Regular, Consolas, monospace;
+	resize: vertical;
+}
+.fen-actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.5rem;
+	margin-top: 0.55rem;
+}
+.fen-actions button {
+	min-height: 2.75rem;
+	padding: 0.5rem 0.75rem;
+	border: 1px solid #52666d;
+	border-radius: 0.3rem;
+	background: #263238;
+	color: #fff;
+	font: inherit;
+	cursor: pointer;
 }
 .sound-setting {
 	display: flex;
@@ -552,6 +606,10 @@ input:focus-visible {
 		min-width: 44px;
 		min-height: 44px;
 	}
+	.fen-actions button {
+		flex: 1 1 9rem;
+		min-height: 44px;
+	}
 	.game-controls .new-game,
 	.game-controls .resign-game {
 		margin-left: 0;
@@ -761,7 +819,9 @@ input:focus-visible {
 	}
 	button:focus-visible,
 	select:focus-visible,
-	input:focus-visible {
+	input:focus-visible,
+	textarea:focus-visible,
+	.fen-tools summary:focus-visible {
 		outline-color: Highlight;
 	}
 }

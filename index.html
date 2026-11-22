@@ -205,6 +205,15 @@
 				<p id="turn" class="turn-text"> White's Turn</p>
 					<p id="game-status" class="game-status" role="status" aria-live="polite" aria-atomic="true">White to move.</p>
 					<p id="save-status" role="status" aria-live="polite" aria-atomic="true">Moves are saved in this browser after each turn.</p>
+					<details class="fen-tools">
+						<summary>FEN tools</summary>
+						<label for="fen-input">Position in FEN notation</label>
+						<textarea id="fen-input" rows="3" maxlength="128" spellcheck="false" aria-describedby="game-status"></textarea>
+						<div class="fen-actions">
+							<button id="copy-fen" type="button">Copy current FEN</button>
+							<button id="load-fen" type="button">Load FEN</button>
+						</div>
+					</details>
 				<p id="selection-status" class="visually-hidden" role="status" aria-live="polite" aria-atomic="true">Select a piece to hear its legal destinations.</p>
 				<label class="sound-setting"><input id="move-sounds" type="checkbox"> Move and capture sounds</label>
 				<p id="sound-status" class="visually-hidden" role="status" aria-live="polite" aria-atomic="true">Move sounds are off.</p>
