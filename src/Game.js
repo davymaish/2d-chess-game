@@ -13,6 +13,10 @@ class Game {
 		this.promotionDialog = document.getElementById('promotion-dialog');
 		this.pendingPromotion = null;
 		this.promotionCounter = 0;
+		this.moveList = document.getElementById('move-list');
+		this.emptyMoveHistory = document.getElementById('move-history-empty');
+		this.moveHistory = [];
+		this.pendingHistoryMove = null;
 		this.halfmoveClock = 0;
 		this.pendingCapture = false;
 		this.isCastlingRookMove = false;
@@ -273,12 +277,21 @@ class Game {
 			const originalPosition = parseInt(clickedPiece.position);
 			const enPassantCapture = this.getEnPassantCapture(newPosition);
 			if (enPassantCapture) this.capturePiece(enPassantCapture);
+			const isCapture = Boolean(this.pendingCapture || enPassantCapture);
 			if (clickedPiece.hasRank('king') || clickedPiece.hasRank('pawn'))
 				clickedPiece.changePosition(newPosition, true);
 			else
 				clickedPiece.changePosition(newPosition);
 			if (!this.isCastlingRookMove) {
-				this.recordHalfmove(clickedPiece, this.pendingCapture || Boolean(enPassantCapture));
+				this.pendingHistoryMove = {
+					color: clickedPiece.color,
+					rank: clickedPiece.rank,
+					from: originalPosition,
+					to: parseInt(newPosition),
+					isCapture,
+					promotion: null,
+				};
+				this.recordHalfmove(clickedPiece, isCapture);
 				this.pendingCapture = false;
 			}
 			this.recordEnPassantOpportunity(clickedPiece, originalPosition, newPosition);
@@ -290,6 +303,10 @@ class Game {
 	}
 
 	finishMove(movingColor) {
+		if (!this.isCastlingRookMove && this.pendingHistoryMove) {
+			this.recordMoveHistory(this.pendingHistoryMove);
+			this.pendingHistoryMove = null;
+		}
 		this.changeTurn();
 		if (!this.isCastlingRookMove) this.recordPosition();
 		const outcome = this.getGameOutcome(this.turn);
@@ -299,6 +316,33 @@ class Game {
 		else if (outcome === 'insufficient-material') this.drawByInsufficientMaterial();
 		else if (outcome === 'fifty-move-draw') this.drawByFiftyMoveRule();
 		else if (outcome === 'threefold-repetition') this.drawByThreefoldRepetition();
+	}
+
+	formatMove(move) {
+		const squareName = position => `${String.fromCharCode(96 + position % 10)}${Math.floor(position / 10)}`;
+		const from = parseInt(move.from);
+		const to = parseInt(move.to);
+		if (move.rank === 'king' && Math.abs(to - from) === 2) {
+			return to > from ? 'O-O' : 'O-O-O';
+		}
+		const pieceLetter = { king: 'K', queen: 'Q', rook: 'R', bishop: 'B', knight: 'N' }[move.rank] || '';
+		const separator = move.isCapture ? 'x' : '-';
+		const promotion = move.promotion ? `=${move.promotion.charAt(0).toUpperCase()}` : '';
+		return `${pieceLetter}${squareName(from)}${separator}${squareName(to)}${promotion}`;
+	}
+
+	recordMoveHistory(move) {
+		if (!Array.isArray(this.moveHistory)) this.moveHistory = [];
+		const moveNumber = Math.floor(this.moveHistory.length / 2) + 1;
+		const turnLabel = move.color === 'black' ? `${moveNumber}...` : `${moveNumber}.`;
+		const notation = `${turnLabel} ${this.formatMove(move)}`;
+		this.moveHistory.push(notation);
+		if (!this.moveList) return;
+		const item = document.createElement('div');
+		item.textContent = notation;
+		this.moveList.appendChild(item);
+		this.moveList.scrollTop = this.moveList.scrollHeight;
+		if (this.emptyMoveHistory) this.emptyMoveHistory.hidden = true;
 	}
 
 	recordHalfmove(piece, isCapture) {
@@ -368,6 +412,7 @@ class Game {
 		promotedPiece.img = image;
 		this.pieces.push(promotedPiece);
 		this.pendingPromotion = null;
+		if (this.pendingHistoryMove) this.pendingHistoryMove.promotion = choice;
 		this.promotionDialog.close();
 		this.finishMove(pawn.color);
 		return promotedPiece;
