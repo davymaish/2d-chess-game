@@ -43,6 +43,10 @@ The movement regression tests use Node.js's built-in test runner and require no 
 npm test
 ```
 
+## Chess clock model
+
+`src/chess-clock.js` provides the reusable `ChessClock` model. It tracks separate white and black time banks, switches the active side, supports start/pause/resume, and reports updates or flag fall through callbacks. Time controls and player-facing clock controls are planned as later increments.
+
 ## Contributing
 
 Contributions are welcome! If you find any issues or have ideas for improvements, please open an issue or submit a pull request.
