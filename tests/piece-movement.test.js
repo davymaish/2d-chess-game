@@ -277,6 +277,76 @@ test('clock controls start a selected preset, pause and resume, and update acces
 	assert.equal(game.formatClockTime(-1), '0:00');
 });
 
+test('move sounds default off, persist the user preference, and distinguish captures', () => {
+	const previousStorage = context.localStorage;
+	const previousWindow = context.window;
+	const values = new Map([['chess-move-sounds', 'on']]);
+	const frequencies = [];
+	class MockAudioContext {
+		constructor() { this.currentTime = 0; this.destination = {}; }
+		createOscillator() {
+			const oscillator = { frequency: { value: 0 }, connect() {}, start() {}, stop() {} };
+			frequencies.push(oscillator.frequency);
+			return oscillator;
+		}
+		createGain() { return { gain: { setValueAtTime() {}, exponentialRampToValueAtTime() {} }, connect() {} }; }
+	}
+	context.localStorage = {
+		getItem: key => values.has(key) ? values.get(key) : null,
+		setItem: (key, value) => values.set(key, value),
+	};
+	context.window = { AudioContext: MockAudioContext };
+	try {
+		const game = createGame([], null);
+		game.moveSoundsToggle = { checked: false, listeners: {}, addEventListener(type, callback) { this.listeners[type] = callback; } };
+		game.soundStatus = { textContent: '' };
+		game.addSoundControls();
+		assert.equal(game.moveSoundsToggle.checked, true, 'saved preference is restored on load');
+		assert.equal(game.soundStatus.textContent, 'Move sounds are on.');
+		assert.equal(game.playMoveSound(false), true);
+		assert.equal(frequencies[0].value, 620, 'ordinary moves use the higher, quiet tone');
+		assert.equal(game.playMoveSound(true), true);
+		assert.equal(frequencies[1].value, 300, 'captures use a lower, distinct quiet tone');
+		game.moveSoundsToggle.checked = false;
+		game.moveSoundsToggle.listeners.change();
+		assert.equal(values.get('chess-move-sounds'), 'off');
+		assert.equal(game.soundStatus.textContent, 'Move sounds are off.');
+		assert.equal(game.playMoveSound(false), false, 'muted moves do not initialize or play sound');
+
+		const unavailableGame = createGame([], null);
+		unavailableGame.moveSoundsToggle = { checked: true };
+		context.window = {};
+		assert.equal(unavailableGame.playMoveSound(false), false, 'browsers without Web Audio fail gracefully');
+	}
+	finally {
+		if (previousStorage === undefined) delete context.localStorage;
+		else context.localStorage = previousStorage;
+		if (previousWindow === undefined) delete context.window;
+		else context.window = previousWindow;
+	}
+});
+
+test('completed move history dispatches quiet-move and capture cues exactly once', () => {
+	const game = createGame([], null);
+	game.turn = 'white';
+	game.turnSign = { innerHTML: '' };
+	game.isCastlingRookMove = false;
+	game.recordPosition = () => {};
+	game.getGameOutcome = () => 'ongoing';
+	game.updateCheckStatus = () => {};
+	game.commitPendingUndoMove = () => {};
+	game.recordMoveHistory = () => {};
+	const soundKinds = [];
+	game.playMoveSound = isCapture => soundKinds.push(Boolean(isCapture));
+	game.pendingHistoryMove = { isCapture: false };
+	game.finishMove('white');
+	assert.equal(game.pendingHistoryMove, null);
+	game.turn = 'black';
+	game.pendingHistoryMove = { isCapture: true };
+	game.finishMove('black');
+	assert.deepEqual(soundKinds, [false, true]);
+});
+
 test('last-move highlight marks every origin and destination and replaces the prior move', () => {
 	const makeClassList = () => {
 		const values = new Set();

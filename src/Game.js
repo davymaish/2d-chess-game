@@ -33,6 +33,9 @@ class Game {
 		this.blackClockDisplay = document.getElementById('black-clock');
 		this.whiteClockSide = document.getElementById('white-clock-side');
 		this.blackClockSide = document.getElementById('black-clock-side');
+		this.moveSoundsToggle = document.getElementById('move-sounds');
+		this.soundStatus = document.getElementById('sound-status');
+		this.soundContext = null;
 		this.halfmoveClock = 0;
 		this.pendingCapture = false;
 		this.isCastlingRookMove = false;
@@ -47,6 +50,7 @@ class Game {
 		this.addHistoryControls();
 		this.addGameControls();
 		this.addClockControls();
+		this.addSoundControls();
 		this.whiteSematary = document.getElementById('whiteSematary');
 		this.blackSematary = document.getElementById('blackSematary');
 		this.updateCheckStatus();
@@ -393,6 +397,52 @@ class Game {
 		this.updateClockControls();
 	}
 
+	addSoundControls() {
+		if (!this.moveSoundsToggle) return;
+		try {
+			this.moveSoundsToggle.checked = typeof localStorage !== 'undefined' && localStorage.getItem('chess-move-sounds') === 'on';
+		}
+		catch (error) {
+			this.moveSoundsToggle.checked = false;
+		}
+		this.updateSoundStatus();
+		this.moveSoundsToggle.addEventListener('change', () => {
+			try {
+				if (typeof localStorage !== 'undefined') localStorage.setItem('chess-move-sounds', this.moveSoundsToggle.checked ? 'on' : 'off');
+			}
+			catch (error) { /* Keep the in-page preference usable if storage is unavailable. */ }
+			this.updateSoundStatus();
+		});
+	}
+
+	updateSoundStatus() {
+		if (this.soundStatus) this.soundStatus.textContent = this.moveSoundsToggle && this.moveSoundsToggle.checked ? 'Move sounds are on.' : 'Move sounds are off.';
+	}
+
+	playMoveSound(isCapture = false) {
+		if (!this.moveSoundsToggle || !this.moveSoundsToggle.checked || typeof window === 'undefined') return false;
+		const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+		if (!AudioContextClass) return false;
+		try {
+			if (!this.soundContext) this.soundContext = new AudioContextClass();
+			const oscillator = this.soundContext.createOscillator();
+			const gain = this.soundContext.createGain();
+			const startAt = this.soundContext.currentTime;
+			oscillator.type = 'sine';
+			oscillator.frequency.value = isCapture ? 300 : 620;
+			gain.gain.setValueAtTime(0.035, startAt);
+			gain.gain.exponentialRampToValueAtTime(0.001, startAt + 0.09);
+			oscillator.connect(gain);
+			gain.connect(this.soundContext.destination);
+			oscillator.start(startAt);
+			oscillator.stop(startAt + 0.09);
+			return true;
+		}
+		catch (error) {
+			return false;
+		}
+	}
+
 	formatClockTime(seconds) {
 		const wholeSeconds = Math.max(0, Math.floor(seconds));
 		return `${Math.floor(wholeSeconds / 60)}:${String(wholeSeconds % 60).padStart(2, '0')}`;
@@ -467,6 +517,7 @@ class Game {
 		if (!this.isCastlingRookMove && this.pendingHistoryMove) {
 			this.pendingHistoryMove.checkSuffix = outcome === 'checkmate' ? '#' : outcome === 'check' ? '+' : '';
 			this.recordMoveHistory(this.pendingHistoryMove);
+			this.playMoveSound(this.pendingHistoryMove.isCapture);
 			this.pendingHistoryMove = null;
 		}
 		if (!this.isCastlingRookMove) this.commitPendingUndoMove();
