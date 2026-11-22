@@ -1213,6 +1213,10 @@ class Game {
 		return JSON.stringify([this.turn, board, castlingRights, enPassant]);
 	}
 
+	toFEN() {
+		return serializeGameToFEN(this);
+	}
+
 	recordPosition() {
 		if (!this.positionCounts) this.positionCounts = new Map();
 		const key = this.getPositionKey();
