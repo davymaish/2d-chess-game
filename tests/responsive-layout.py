@@ -267,6 +267,35 @@ async def main():
                     "Copy control did not announce clipboard or manual-copy feedback")
             fail_if(copied_fen_state["touchHeight"] < 44, "FEN copy control is smaller than the mobile touch target")
 
+            await page.locator(".pgn-tools summary").click()
+            await page.locator("#export-pgn").click()
+            await page.wait_for_function("document.querySelector('#pgn-status').textContent.includes('exported')")
+            pgn_controls = await page.evaluate("""() => ({
+                field: document.querySelector('#pgn-input').value,
+                status: document.querySelector('#pgn-status').textContent,
+                board: game.toFEN(),
+                documentWidth: document.documentElement.scrollWidth,
+                panelRight: document.querySelector('.pgn-tools').getBoundingClientRect().right,
+                viewportWidth: window.innerWidth,
+                exportHeight: document.querySelector('#export-pgn').getBoundingClientRect().height,
+                importHeight: document.querySelector('#import-pgn').getBoundingClientRect().height,
+            })""")
+            fail_if("[Result \"*\"]" not in pgn_controls["field"], "PGN export did not populate standard headers and result")
+            fail_if(pgn_controls["documentWidth"] > pgn_controls["viewportWidth"] or
+                    pgn_controls["panelRight"] > pgn_controls["viewportWidth"],
+                    "Expanded PGN tools caused horizontal overflow on a 320-pixel phone")
+            fail_if(pgn_controls["exportHeight"] < 44 or pgn_controls["importHeight"] < 44,
+                    "PGN actions are smaller than the mobile touch target")
+            await page.locator("#import-pgn").click()
+            await page.wait_for_function("document.querySelector('#pgn-status').textContent.includes('active board was not changed')")
+            fail_if(pgn_controls["board"] != fen_position, "PGN preview changed the active board")
+            imported_preview = await page.evaluate("""() => ({
+                hidden: document.querySelector('#pgn-preview').hidden,
+                text: document.querySelector('#pgn-preview').textContent,
+            })""")
+            fail_if(imported_preview["hidden"] or "Result: *" not in imported_preview["text"],
+                    "PGN import did not show a readable result preview")
+
             await page.evaluate("window.confirm = message => { window.fenConfirmMessage = message; return false; }")
             await page.locator("#fen-input").fill("not a FEN")
             await page.locator("#load-fen").click()
