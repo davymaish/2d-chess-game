@@ -8,6 +8,7 @@ class Game {
 		this.squares = this.board.querySelectorAll('.square');
 		this.pieces  = pieces;
 		this.turn    = 'white';
+		this.gameOver = false;
 		this.enPassantTarget = null;
 		this.enPassantPawn = null;
 		this.promotionDialog = document.getElementById('promotion-dialog');
@@ -58,6 +59,10 @@ class Game {
 	}
 
 	pieceMove(event) {
+		if (this.gameOver) {
+			this.clearSquares();
+			return false;
+		}
 		const name = event.target.getAttribute('id');
 		const allowedMoves = this.getPieceAllowedMoves(event, name);
 		if (allowedMoves) {
@@ -193,6 +198,7 @@ class Game {
 	}
 
 	getPieceAllowedMoves(event, pieceName){
+		if (this.gameOver) return 0;
 		const piece = this.getPieceByName(pieceName);
 		if(this.turn == piece.color){
 			this.clearSquares();
@@ -274,6 +280,10 @@ class Game {
 	}
 
 	movePiece(event, square='') {
+		if (this.gameOver) {
+			if (event) event.preventDefault();
+			return false;
+		}
 		square = square || event.target;
 		if (square.classList.contains('allowed')) {
 			const clickedPiece = this.clickedPiece;
@@ -321,6 +331,7 @@ class Game {
 	}
 
 	finishMove(movingColor) {
+		if (this.gameOver) return false;
 		this.changeTurn();
 		if (!this.isCastlingRookMove) this.recordPosition();
 		const outcome = this.getGameOutcome(this.turn);
@@ -505,6 +516,7 @@ class Game {
 	}
 
 	undoMove() {
+		if (this.gameOver) return false;
 		if (!Array.isArray(this.undoStack) || this.undoStack.length === 0) return false;
 		const entry = this.undoStack[this.undoStack.length - 1];
 		if (!entry.supported) return false;
@@ -515,6 +527,7 @@ class Game {
 	}
 
 	redoMove() {
+		if (this.gameOver) return false;
 		if (!Array.isArray(this.redoStack) || this.redoStack.length === 0) return false;
 		const entry = this.redoStack.pop();
 		this.undoStack.push(entry);
@@ -612,21 +625,48 @@ class Game {
 	}
 
 	updateHistoryControls() {
-		if (this.undoButton) this.undoButton.disabled = !this.undoStack || this.undoStack.length === 0;
-		if (this.redoButton) this.redoButton.disabled = !this.redoStack || this.redoStack.length === 0;
+		if (this.undoButton) this.undoButton.disabled = this.gameOver || !this.undoStack || this.undoStack.length === 0;
+		if (this.redoButton) this.redoButton.disabled = this.gameOver || !this.redoStack || this.redoStack.length === 0;
 	}
 
 	addGameControls() {
 		this.newGameButton = document.getElementById('new-game');
 		if (this.newGameButton) this.newGameButton.addEventListener('click', () => this.startNewGame());
+		this.resignButton = document.getElementById('resign-game');
+		if (this.resignButton) this.resignButton.addEventListener('click', () => this.requestResignation());
+		this.restartButton = document.getElementById('restart-game');
+		if (this.restartButton) this.restartButton.addEventListener('click', () => this.startNewGame());
 	}
 
 	startNewGame() {
-		const hasProgress = (this.moveHistory && this.moveHistory.length > 0) ||
+		const hasProgress = !this.gameOver && ((this.moveHistory && this.moveHistory.length > 0) ||
 			Boolean(this.pendingPromotion || this.pendingHistoryMove) ||
-			(this.undoStack && this.undoStack.length > 0);
+			(this.undoStack && this.undoStack.length > 0));
 		if (hasProgress && !window.confirm('Start a new game? The current game and move history will be discarded.')) return false;
 		window.location.reload();
+		return true;
+	}
+
+	requestResignation() {
+		if (this.gameOver || this.pendingPromotion) return false;
+		if (!window.confirm('Resign this game? Your opponent will win.')) return false;
+		const resigningColor = this.turn;
+		const winner = resigningColor === 'white' ? 'Black' : 'White';
+		this.finishGame(`${resigningColor.charAt(0).toUpperCase() + resigningColor.slice(1)} resigns. ${winner} wins.`);
+		return true;
+	}
+
+	finishGame(message) {
+		if (this.gameOver) return false;
+		this.gameOver = true;
+		const endScene = document.getElementById('endscene');
+		const result = endScene.getElementsByClassName('winning-sign')[0];
+		result.textContent = message;
+		this.gameStatus.textContent = message;
+		this.gameStatus.classList.remove('is-check');
+		if (this.resignButton) this.resignButton.disabled = true;
+		this.updateHistoryControls();
+		endScene.classList.add('show');
 		return true;
 	}
 
@@ -759,46 +799,24 @@ class Game {
 	}
 
 	checkmate(color){
-		const endScene = document.getElementById('endscene');
 		const winner = color.charAt(0).toUpperCase() + color.slice(1);
-		endScene.getElementsByClassName('winning-sign')[0].textContent = 'Checkmate. ' + winner + ' wins.';
-		endScene.classList.add('show');
+		this.finishGame('Checkmate. ' + winner + ' wins.');
 	}
 
 	stalemate() {
-		const message = 'Draw by stalemate.';
-		const endScene = document.getElementById('endscene');
-		endScene.getElementsByClassName('winning-sign')[0].textContent = message;
-		this.gameStatus.textContent = message;
-		this.gameStatus.classList.remove('is-check');
-		endScene.classList.add('show');
+		this.finishGame('Draw by stalemate.');
 	}
 
 	drawByInsufficientMaterial() {
-		const message = 'Draw by insufficient material.';
-		const endScene = document.getElementById('endscene');
-		endScene.getElementsByClassName('winning-sign')[0].textContent = message;
-		this.gameStatus.textContent = message;
-		this.gameStatus.classList.remove('is-check');
-		endScene.classList.add('show');
+		this.finishGame('Draw by insufficient material.');
 	}
 
 	drawByFiftyMoveRule() {
-		const message = 'Draw by the fifty-move rule.';
-		const endScene = document.getElementById('endscene');
-		endScene.getElementsByClassName('winning-sign')[0].textContent = message;
-		this.gameStatus.textContent = message;
-		this.gameStatus.classList.remove('is-check');
-		endScene.classList.add('show');
+		this.finishGame('Draw by the fifty-move rule.');
 	}
 
 	drawByThreefoldRepetition() {
-		const message = 'Draw by threefold repetition.';
-		const endScene = document.getElementById('endscene');
-		endScene.getElementsByClassName('winning-sign')[0].textContent = message;
-		this.gameStatus.textContent = message;
-		this.gameStatus.classList.remove('is-check');
-		endScene.classList.add('show');
+		this.finishGame('Draw by threefold repetition.');
 	}
 }
 
