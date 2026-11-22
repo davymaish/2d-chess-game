@@ -25,7 +25,7 @@ _The game in action._
 - Undo and redo controls with Ctrl/Cmd+Z, Ctrl/Cmd+Y, and Ctrl/Cmd+Shift+Z shortcuts
 - New Game action that confirms before discarding a game with recorded progress
 - Resignation with confirmation, an announced result, locked terminal controls, and a restart action
-- Automatically saves stable in-progress games after completed moves; after refresh, choose Resume Saved Game or Start New Game, and clear the saved copy while continuing a resumed game
+- Automatically saves stable in-progress games after completed moves; after refresh, choose Resume Saved Game or Start New Game, and clear the saved copy while continuing a resumed game; corrupt or unsupported snapshots are discarded with an accessible notice, while blocked storage never prevents play
 
 ## Installation
 
@@ -57,7 +57,7 @@ The movement regression tests use Node.js's built-in test runner and require no 
 npm test
 ```
 
-Browser checks run the page in Chromium at representative phone and tablet sizes, verifying square board geometry, panel placement, and horizontal overflow. They also exercise move autosave, the explicit resume prompt, continued play, start-new and clear-save actions, promoted-piece restoration, and saved-clock restoration. They require Python 3, Playwright, and Chromium; install Playwright and its browser with `python3 -m pip install playwright` and `python3 -m playwright install chromium`, then run:
+Browser checks run the page in Chromium at representative phone and tablet sizes, verifying square board geometry, panel placement, and horizontal overflow. They also exercise move autosave, the explicit resume prompt, continued play, start-new and clear-save actions, promoted-piece restoration, saved-clock restoration, corrupt/outdated save recovery, and non-blocking autosave failure. They require Python 3, Playwright, and Chromium; install Playwright and its browser with `python3 -m pip install playwright` and `python3 -m playwright install chromium`, then run:
 
 ```sh
 npm run test:responsive
@@ -67,7 +67,7 @@ To use an existing Chromium installation instead of Playwright's downloaded brow
 
 ## Local save format
 
-`src/game-save.js` defines a version-1 JSON format for stable, in-progress games. It validates piece identities and positions, turn, castling flags, en-passant state, move history, half-move count, repetition counts, last-move squares, and optional clock state; malformed, oversized, unsupported-version, finished, or transitional saves are rejected. `src/game-persistence.js` stores the validated snapshot in browser storage after completed moves and offers an explicit Resume Saved Game or Start New Game choice after refresh. Resuming restores the board, side to move, history, piece rights, repetition state, and optional clock. Clear Saved Game removes the stored copy without ending the current game; subsequent moves are saved again. Storage access fails safely.
+`src/game-save.js` defines a version-1 JSON format for stable, in-progress games. It validates piece identities and positions, turn, castling flags, en-passant state, move history, half-move count, repetition counts, last-move squares, and optional clock state; malformed, oversized, unsupported-version, finished, or transitional saves are rejected. `src/game-persistence.js` stores the validated snapshot in browser storage after completed moves and reports whether a save is available, missing, corrupt, outdated, or inaccessible. Corrupt and unsupported snapshots are removed when possible and announced; inaccessible storage or quota errors produce a polite warning without interrupting the current game. Resuming restores the board, side to move, history, piece rights, repetition state, and optional clock. Clear Saved Game removes the stored copy without ending the current game; subsequent moves are saved again when storage is available.
 
 ## Chess clock model
 

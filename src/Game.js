@@ -56,8 +56,8 @@ class Game {
 		this.blackSematary = document.getElementById('blackSematary');
 		this.updateBoardAccessibleNames();
 		this.updateCheckStatus();
-		const savedGame = loadGameFromStorage();
-		this.addSavedGameControls(savedGame);
+		const saveRead = inspectGameSaveStorage();
+		this.addSavedGameControls(saveRead.save, saveRead.status);
 	}
 
 	addEventListeners() {
@@ -912,12 +912,18 @@ class Game {
 		if (this.restartButton) this.restartButton.addEventListener('click', () => this.startNewGame());
 	}
 
-	addSavedGameControls(savedGame) {
+	addSavedGameControls(savedGame, storageStatus = 'missing') {
 		this.savedGameDialog = document.getElementById('saved-game-dialog');
 		this.resumeSavedGameButton = document.getElementById('resume-saved-game');
 		this.startNewFromSaveButton = document.getElementById('start-new-from-save');
 		this.clearSavedGameButton = document.getElementById('clear-saved-game');
 		this.saveStatus = document.getElementById('save-status');
+		const recoveryMessages = {
+			corrupt: 'An unreadable saved game was discarded. Your new game can continue normally.',
+			outdated: 'A saved game from an unsupported format was discarded. Your new game can continue normally.',
+			unavailable: 'Browser storage is unavailable. You can play, but progress may not be saved.',
+		};
+		if (this.saveStatus && recoveryMessages[storageStatus]) this.saveStatus.textContent = recoveryMessages[storageStatus];
 		if (this.resumeSavedGameButton) this.resumeSavedGameButton.addEventListener('click', () => this.resumeSavedGame());
 		if (this.startNewFromSaveButton) this.startNewFromSaveButton.addEventListener('click', () => this.startNewGameFromSavedGame());
 		if (this.clearSavedGameButton) this.clearSavedGameButton.addEventListener('click', () => this.clearSavedGame());
@@ -943,15 +949,20 @@ class Game {
 	}
 
 	startNewGameFromSavedGame() {
-		clearGameSaveFromStorage();
+		const cleared = clearGameSaveFromStorage();
 		if (this.savedGameDialog && this.savedGameDialog.open) this.savedGameDialog.close();
 		if (this.clearSavedGameButton) this.clearSavedGameButton.hidden = true;
-		if (this.saveStatus) this.saveStatus.textContent = 'Saved game cleared. A new game is ready.';
+		if (this.saveStatus) this.saveStatus.textContent = cleared
+			? 'Saved game cleared. A new game is ready.'
+			: 'A new game is ready, but browser storage could not be cleared.';
 		return true;
 	}
 
 	clearSavedGame() {
-		if (!clearGameSaveFromStorage()) return false;
+		if (!clearGameSaveFromStorage()) {
+			if (this.saveStatus) this.saveStatus.textContent = 'Browser storage could not be cleared. The current game continues.';
+			return false;
+		}
 		if (this.clearSavedGameButton) this.clearSavedGameButton.hidden = true;
 		if (this.saveStatus) this.saveStatus.textContent = 'Saved game cleared. The current game continues; future moves will be saved again.';
 		return true;
@@ -963,6 +974,7 @@ class Game {
 			if (this.clearSavedGameButton) this.clearSavedGameButton.hidden = false;
 			if (this.saveStatus) this.saveStatus.textContent = 'Game progress saved in this browser.';
 		}
+		else if (this.saveStatus) this.saveStatus.textContent = 'This move is safe, but browser storage could not save it. Keep this tab open to avoid losing progress.';
 		return saved;
 	}
 

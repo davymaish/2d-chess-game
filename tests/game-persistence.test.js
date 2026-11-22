@@ -9,7 +9,7 @@ const context = vm.createContext({ TextEncoder });
 for (const file of ['src/game-save.js', 'src/game-persistence.js']) {
 	vm.runInContext(fs.readFileSync(path.join(root, file), 'utf8'), context, { filename: file });
 }
-const api = vm.runInContext('({ GAME_SAVE_STORAGE_KEY, saveGameToStorage, loadGameFromStorage, clearGameSaveFromStorage })', context);
+const api = vm.runInContext('({ GAME_SAVE_STORAGE_KEY, saveGameToStorage, loadGameFromStorage, inspectGameSaveStorage, clearGameSaveFromStorage })', context);
 const positionKey = JSON.stringify(['white', 'black:king:85,white:king:15', 'white:-,black:-', null]);
 
 function makeGame() {
@@ -61,6 +61,38 @@ test('load returns null for absent or malformed storage values without throwing'
 	assert.equal(api.loadGameFromStorage(makeStorage({ [api.GAME_SAVE_STORAGE_KEY]: '{broken' })), null);
 	const blocked = { getItem() { throw new Error('storage blocked'); } };
 	assert.equal(api.loadGameFromStorage(blocked), null);
+});
+
+test('storage inspection distinguishes missing, available, corrupt, outdated, and unavailable saves', () => {
+	const validStorage = makeStorage();
+	assert.equal(api.inspectGameSaveStorage(validStorage).status, 'missing');
+	api.saveGameToStorage(makeGame(), validStorage);
+	assert.equal(api.inspectGameSaveStorage(validStorage).status, 'available');
+
+	const corrupt = makeStorage({ [api.GAME_SAVE_STORAGE_KEY]: '{broken' });
+	assert.equal(api.inspectGameSaveStorage(corrupt).status, 'corrupt');
+	assert.equal(corrupt.getItem(api.GAME_SAVE_STORAGE_KEY), null, 'unreadable data is removed when possible');
+
+	const outdated = makeStorage({ [api.GAME_SAVE_STORAGE_KEY]: JSON.stringify({ schema: '2d-chess-game', version: 0 }) });
+	assert.equal(api.inspectGameSaveStorage(outdated).status, 'outdated');
+	assert.equal(outdated.getItem(api.GAME_SAVE_STORAGE_KEY), null, 'unsupported data is removed when possible');
+	const oversized = makeStorage({ [api.GAME_SAVE_STORAGE_KEY]: 'x'.repeat(256 * 1024 + 1) });
+	assert.equal(api.inspectGameSaveStorage(oversized).status, 'corrupt');
+	assert.equal(oversized.getItem(api.GAME_SAVE_STORAGE_KEY), null, 'oversized data is removed when possible');
+
+	const blocked = { getItem() { throw new Error('storage blocked'); } };
+	assert.equal(api.inspectGameSaveStorage(blocked).status, 'unavailable');
+	assert.equal(api.inspectGameSaveStorage(null).status, 'unavailable');
+});
+
+test('invalid snapshots remain safely ignorable when browser storage refuses cleanup', () => {
+	const storage = {
+		getItem() { return '{broken'; },
+		removeItem() { throw new Error('storage blocked'); },
+	};
+	const result = api.inspectGameSaveStorage(storage);
+	assert.equal(result.status, 'corrupt');
+	assert.equal(result.save, null);
 });
 
 test('write and clear report unavailable or blocked storage without interrupting game flow', () => {

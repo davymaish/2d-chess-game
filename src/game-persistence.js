@@ -22,16 +22,49 @@ function saveGameToStorage(game, storage) {
 	}
 }
 
-function loadGameFromStorage(storage) {
+function inspectGameSaveStorage(storage) {
+	const target = getGameSaveStorage(storage);
+	if (!target) return { status: 'unavailable', save: null };
+	let serialized;
 	try {
-		const target = getGameSaveStorage(storage);
-		if (!target) return null;
-		const serialized = target.getItem(GAME_SAVE_STORAGE_KEY);
-		return serialized === null ? null : parseGameSave(serialized);
+		serialized = target.getItem(GAME_SAVE_STORAGE_KEY);
 	}
 	catch {
-		return null;
+		return { status: 'unavailable', save: null };
 	}
+	if (serialized === null) return { status: 'missing', save: null };
+	if (typeof serialized !== 'string' || serialized.length > 256 * 1024) {
+		clearGameSaveFromStorage(target);
+		return { status: 'corrupt', save: null };
+	}
+
+	let candidate;
+	try {
+		candidate = JSON.parse(serialized);
+	}
+	catch {
+		clearGameSaveFromStorage(target);
+		return { status: 'corrupt', save: null };
+	}
+	if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) {
+		clearGameSaveFromStorage(target);
+		return { status: 'corrupt', save: null };
+	}
+	if (candidate.schema !== GAME_SAVE_SCHEMA || candidate.version !== GAME_SAVE_VERSION) {
+		clearGameSaveFromStorage(target);
+		return { status: 'outdated', save: null };
+	}
+	try {
+		return { status: 'available', save: parseGameSave(serialized) };
+	}
+	catch {
+		clearGameSaveFromStorage(target);
+		return { status: 'corrupt', save: null };
+	}
+}
+
+function loadGameFromStorage(storage) {
+	return inspectGameSaveStorage(storage).save;
 }
 
 function clearGameSaveFromStorage(storage) {

@@ -207,7 +207,37 @@ async def main():
             fail_if(fresh_snapshot is not None, "Start New Game from the resume prompt did not clear the saved game")
             fail_if(await page.locator('[id="15"] img#whiteKing').count() != 1,
                     "Start New Game from the resume prompt did not leave a fresh board")
-            print("PASS promoted-piece, clock, explicit resume, clear-save, and start-new behavior")
+
+            await page.evaluate("localStorage.setItem('2d-chess-game:save:v1', '{broken')")
+            await page.reload(wait_until="load")
+            corrupt_recovery = await page.evaluate("""() => ({
+                status: document.querySelector('#save-status').textContent,
+                save: localStorage.getItem('2d-chess-game:save:v1'),
+            })""")
+            fail_if(corrupt_recovery["save"] is not None, "Corrupt save was not removed")
+            fail_if("unreadable" not in corrupt_recovery["status"].lower(), "Corrupt save recovery was not announced")
+            await page.locator("#whitePawn5").click()
+            await page.locator('[id="45"]').click()
+            fail_if(await page.locator('[id="45"] img#whitePawn5').count() != 1,
+                    "Corrupt saved data prevented a new move")
+
+            await page.evaluate("localStorage.setItem('2d-chess-game:save:v1', JSON.stringify({schema:'2d-chess-game',version:0}))")
+            await page.reload(wait_until="load")
+            outdated_recovery = await page.evaluate("""() => ({
+                status: document.querySelector('#save-status').textContent,
+                save: localStorage.getItem('2d-chess-game:save:v1'),
+            })""")
+            fail_if(outdated_recovery["save"] is not None, "Outdated save was not removed")
+            fail_if("unsupported" not in outdated_recovery["status"].lower(), "Outdated save recovery was not announced")
+
+            await page.evaluate("Storage.prototype.setItem = function() { throw new DOMException('blocked', 'QuotaExceededError'); }; true")
+            await page.locator("#whitePawn5").click()
+            await page.locator('[id="45"]').click()
+            write_warning = await page.locator("#save-status").text_content()
+            fail_if("could not save" not in write_warning.lower(), "Unavailable write did not announce the autosave failure")
+            fail_if(await page.locator('[id="45"] img#whitePawn5').count() != 1,
+                    "Unavailable storage interrupted the current move")
+            print("PASS promoted-piece, clock, recovery, explicit resume, clear-save, and start-new behavior")
 
             fail_if(page_errors, "Browser reported page errors: " + "; ".join(page_errors))
         finally:
