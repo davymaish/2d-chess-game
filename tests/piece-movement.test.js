@@ -1084,6 +1084,82 @@ test('undo restores king castling rights after an ordinary king move', () => {
   assert.equal(king.ableToCastle, true);
 });
 
+test('undo and redo restore a captured piece identity, board square, and graveyard slot', () => {
+  const King = pieceClass('King');
+  const Rook = pieceClass('Rook');
+  const Pawn = pieceClass('Pawn');
+  const whiteRook = new Rook(21, 'whiteRook1');
+  const capturedPawn = new Pawn(24, 'blackPawn4');
+  const whiteKing = new King(15, 'whiteKing');
+  const blackKing = new King(85, 'blackKing');
+  const game = createGame([whiteKing, whiteRook, capturedPawn, blackKing], whiteRook);
+  const makeSlot = () => ({ append(image) { image.parentNode = this; } });
+  const capturedSlot = makeSlot();
+  const blackSematary = { querySelector: () => capturedSlot };
+  const whiteSematary = { querySelector: () => makeSlot() };
+  const squares = new Map();
+  for (const position of [15, 21, 24, 85]) {
+    squares.set(position, {
+      id: String(position),
+      classList: { contains: name => name === 'allowed' },
+      getAttribute: name => name === 'id' ? String(position) : null,
+      append(image) { image.parentNode = this; },
+    });
+  }
+  const capturedSquare = squares.get(24);
+  const originalSquare = { removeChild(image) { image.parentNode = null; } };
+  capturedPawn.img.parentNode = originalSquare;
+  capturedPawn.img.className = 'piece pawn';
+  whiteRook.img.parentNode = squares.get(21);
+
+  const originalGetElementById = context.document.getElementById;
+  context.document.getElementById = id => squares.get(Number(id)) || { id };
+  game.turn = 'white';
+  game.turnSign = { innerHTML: '' };
+  game.moveList = null;
+  game.emptyMoveHistory = { hidden: false };
+  game.moveHistory = [];
+  game.halfmoveClock = 0;
+  game.positionCounts = new Map([['before-capture', 1]]);
+  game.undoStack = [];
+  game.redoStack = [];
+  game.pendingUndoEntry = null;
+  game.pendingCaptureState = null;
+  game.whiteSematary = whiteSematary;
+  game.blackSematary = blackSematary;
+  game.getMoveDisambiguation = () => '';
+  game.recordPosition = () => {};
+  game.getGameOutcome = () => 'ongoing';
+  game.updateCheckStatus = () => {};
+  game.clearSquares = () => {};
+
+  try {
+    game.kill(capturedPawn);
+    assert.equal(game.pieces.includes(capturedPawn), false);
+    assert.equal(whiteRook.position, 24);
+    assert.equal(game.undoStack.at(-1).supported, true);
+    assert.equal(capturedPawn.img.parentNode, capturedSlot);
+
+    assert.equal(game.undoMove(), true);
+    assert.equal(game.pieces.includes(capturedPawn), true);
+    assert.equal(capturedPawn.position, 24);
+    assert.equal(capturedPawn.img.parentNode, capturedSquare);
+    assert.equal(capturedPawn.img.className, 'piece pawn');
+    assert.equal(whiteRook.position, 21);
+    assert.equal(game.turn, 'white');
+
+    assert.equal(game.redoMove(), true);
+    assert.equal(game.pieces.includes(capturedPawn), false);
+    assert.equal(capturedPawn.position, 24);
+    assert.equal(capturedPawn.img.parentNode, capturedSlot);
+    assert.equal(whiteRook.position, 24);
+    assert.equal(game.turn, 'black');
+  }
+  finally {
+    context.document.getElementById = originalGetElementById;
+  }
+});
+
 test('move history displays moves in chronological order with full-move numbers', () => {
   const game = createGame([], null);
   const items = [];
