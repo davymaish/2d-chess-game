@@ -45,7 +45,7 @@ npm test
 
 ## Chess clock model
 
-`src/chess-clock.js` provides the reusable `ChessClock` model. It tracks separate white and black time banks, switches the active side, supports start/pause/resume, and reports updates or flag fall through callbacks. Time controls and player-facing clock controls are planned as later increments.
+`src/chess-clock.js` provides the reusable `ChessClock` model. It tracks separate white and black time banks, switches the active side, supports start/pause/resume, and reports updates or flag fall through callbacks. `getChessClockPreset()` provides common Bullet 1+0, Blitz 3+2/5+0, and Rapid 10+0/15+10 configurations. A configurable increment is credited to the side that completes a move. Player-facing clock controls are planned as a later increment.
 
 ## Contributing
 
