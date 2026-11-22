@@ -37,6 +37,7 @@ class Game {
 		this.soundStatus = document.getElementById('sound-status');
 		this.soundContext = null;
 		this.halfmoveClock = 0;
+		this.fullmoveNumber = 1;
 		this.pendingCapture = false;
 		this.isCastlingRookMove = false;
 		this.positionCounts = new Map();
@@ -656,10 +657,11 @@ class Game {
 
 	recordMoveHistory(move) {
 		if (!Array.isArray(this.moveHistory)) this.moveHistory = [];
-		const moveNumber = Math.floor(this.moveHistory.length / 2) + 1;
+		const moveNumber = this.fullmoveNumber ?? Math.floor(this.moveHistory.length / 2) + 1;
 		const turnLabel = move.color === 'black' ? `${moveNumber}...` : `${moveNumber}.`;
 		const notation = `${turnLabel} ${this.formatMove(move)}`;
 		this.moveHistory.push(notation);
+		this.fullmoveNumber = move.color === 'black' ? moveNumber + 1 : moveNumber;
 		if (!this.moveList) return;
 		const item = document.createElement('div');
 		item.textContent = notation;
@@ -755,6 +757,7 @@ class Game {
 			})),
 			turn: this.turn,
 			halfmoveClock: this.halfmoveClock || 0,
+			fullmoveNumber: this.fullmoveNumber ?? 1,
 			enPassantTarget: this.enPassantTarget ?? null,
 			enPassantPawn: this.enPassantPawn || null,
 			positionCounts: new Map(this.positionCounts || []),
@@ -825,6 +828,7 @@ class Game {
 		});
 		this.turn = state.turn;
 		this.halfmoveClock = state.halfmoveClock;
+		this.fullmoveNumber = state.fullmoveNumber ?? Math.floor(state.moveHistory.length / 2) + 1;
 		this.enPassantTarget = state.enPassantTarget;
 		this.enPassantPawn = state.enPassantPawn;
 		this.positionCounts = new Map(state.positionCounts);
@@ -1142,6 +1146,7 @@ class Game {
 		this.enPassantTarget = state.enPassantTarget;
 		this.enPassantPawn = restoredPieces.find(piece => piece.name === state.enPassantPawn) || null;
 		this.halfmoveClock = state.halfmoveClock;
+		this.fullmoveNumber = state.fullmoveNumber ?? Math.floor(state.moveHistory.length / 2) + 1;
 		this.moveHistory = [...state.moveHistory];
 		this.positionCounts = new Map(state.positionCounts);
 		this.lastMove = state.lastMove ? [...state.lastMove] : null;
@@ -1215,6 +1220,66 @@ class Game {
 
 	toFEN() {
 		return serializeGameToFEN(this);
+	}
+
+	loadFEN(fen) {
+		let position;
+		try {
+			position = parseGameFEN(fen);
+		}
+		catch {
+			return false;
+		}
+		const enPassantPawnPosition = position.enPassantTarget === null ? null :
+			position.enPassantTarget + (position.turn === 'black' ? 10 : -10);
+		const enPassantPawn = enPassantPawnPosition === null ? null :
+			position.pieces.find(piece => piece.position === enPassantPawnPosition && piece.rank === 'pawn');
+		if (position.enPassantTarget !== null && !enPassantPawn) return false;
+		const save = {
+			schema: GAME_SAVE_SCHEMA,
+			version: GAME_SAVE_VERSION,
+			savedAt: new Date().toISOString(),
+			state: {
+				turn: position.turn,
+				pieces: position.pieces,
+				enPassantTarget: position.enPassantTarget,
+				enPassantPawn: enPassantPawn ? enPassantPawn.name : null,
+				halfmoveClock: position.halfmoveClock,
+				fullmoveNumber: position.fullmoveNumber,
+				moveHistory: [],
+				positionCounts: [[JSON.stringify([position.turn, '', '', null]), 1]],
+				lastMove: null,
+				clock: null,
+			},
+		};
+		const previousClock = this.clock;
+		if (!this.restoreSavedGame(save)) return false;
+		if (previousClock && typeof previousClock.stop === 'function') previousClock.stop();
+		this.clock = null;
+		this.gameOver = false;
+		if (this.promotionDialog && this.promotionDialog.open) this.promotionDialog.close();
+		const endScene = document.getElementById('endscene');
+		if (endScene && endScene.classList) endScene.classList.remove('show');
+		if (this.resignButton) this.resignButton.disabled = false;
+		this.pendingPromotion = null;
+		this.pendingHistoryMove = null;
+		this.pendingCapture = false;
+		this.pendingCaptureState = null;
+		this.pendingUndoEntry = null;
+		this.pendingCastleRookMove = null;
+		this.undoStack = [];
+		this.redoStack = [];
+		this.fullmoveNumber = position.fullmoveNumber;
+		this.positionCounts = new Map();
+		this.recordPosition();
+		const preset = this.clockPreset && getChessClockPreset(this.clockPreset.value);
+		const baseSeconds = preset ? preset.baseSeconds : 300;
+		this.updateClockDisplay({ activeColor: this.turn, whiteSeconds: baseSeconds, blackSeconds: baseSeconds, running: false });
+		this.updateClockControls();
+		this.updateHistoryControls();
+		this.updateCheckStatus();
+		this.persistCurrentGame();
+		return true;
 	}
 
 	recordPosition() {

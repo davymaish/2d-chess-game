@@ -230,6 +230,29 @@ async def main():
             fail_if(outdated_recovery["save"] is not None, "Outdated save was not removed")
             fail_if("unsupported" not in outdated_recovery["status"].lower(), "Outdated save recovery was not announced")
 
+            fen_position = "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 42"
+            fen_loaded = await page.evaluate("fen => game.loadFEN(fen)", fen_position)
+            fail_if(not fen_loaded, "A valid FEN position could not initialize the board")
+            loaded_fen_state = await page.evaluate("""() => ({
+                fen: game.toFEN(),
+                turn: document.querySelector('#turn').textContent.trim(),
+                pieceCount: game.pieces.length,
+                enPassantPawn: game.enPassantPawn?.name,
+            })""")
+            fail_if(loaded_fen_state["fen"] != fen_position, "Imported FEN fields did not survive board initialization")
+            fail_if(loaded_fen_state["turn"] != "Black's Turn", "Imported FEN active color did not update the board")
+            fail_if(loaded_fen_state["pieceCount"] != 32, "Imported FEN did not restore all pieces")
+            fail_if(loaded_fen_state["enPassantPawn"] != "whitePawn5", "Imported FEN did not link the en-passant pawn")
+            invalid_fen_result = await page.evaluate("""() => {
+                const before = game.toFEN();
+                return { accepted: game.loadFEN('not a FEN'), before, after: game.toFEN() };
+            }""")
+            fail_if(invalid_fen_result["accepted"], "Malformed FEN should not load")
+            fail_if(invalid_fen_result["before"] != invalid_fen_result["after"], "Failed FEN parsing replaced the current board")
+            print("PASS valid FEN initializes board, active side, rights, en-passant, and counters safely")
+            await page.evaluate("localStorage.removeItem('2d-chess-game:save:v1')")
+            await page.reload(wait_until="load")
+
             await page.evaluate("Storage.prototype.setItem = function() { throw new DOMException('blocked', 'QuotaExceededError'); }; true")
             await page.locator("#whitePawn5").click()
             await page.locator('[id="45"]').click()
