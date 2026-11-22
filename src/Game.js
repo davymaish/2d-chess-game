@@ -25,6 +25,14 @@ class Game {
 		this.lastMove = null;
 		this.pendingCastleRookMove = null;
 		this.clock = null;
+		this.clockPreset = document.getElementById('clock-preset');
+		this.clockStartButton = document.getElementById('clock-start');
+		this.clockPauseButton = document.getElementById('clock-pause');
+		this.clockStatus = document.getElementById('clock-status');
+		this.whiteClockDisplay = document.getElementById('white-clock');
+		this.blackClockDisplay = document.getElementById('black-clock');
+		this.whiteClockSide = document.getElementById('white-clock-side');
+		this.blackClockSide = document.getElementById('black-clock-side');
 		this.halfmoveClock = 0;
 		this.pendingCapture = false;
 		this.isCastlingRookMove = false;
@@ -38,6 +46,7 @@ class Game {
 		this.addEventListeners();
 		this.addHistoryControls();
 		this.addGameControls();
+		this.addClockControls();
 		this.whiteSematary = document.getElementById('whiteSematary');
 		this.blackSematary = document.getElementById('blackSematary');
 		this.updateCheckStatus();
@@ -376,6 +385,66 @@ class Game {
 			if (!this.pendingPromotion) this.finishMove(clickedPiece.color);
 		}
 		if (event) event.preventDefault();
+	}
+
+	addClockControls() {
+		if (this.clockStartButton) this.clockStartButton.addEventListener('click', () => this.startClockFromPreset());
+		if (this.clockPauseButton) this.clockPauseButton.addEventListener('click', () => this.pauseClock());
+		this.updateClockControls();
+	}
+
+	formatClockTime(seconds) {
+		const wholeSeconds = Math.max(0, Math.floor(seconds));
+		return `${Math.floor(wholeSeconds / 60)}:${String(wholeSeconds % 60).padStart(2, '0')}`;
+	}
+
+	updateClockDisplay(state) {
+		if (this.whiteClockDisplay) this.whiteClockDisplay.textContent = this.formatClockTime(state.whiteSeconds);
+		if (this.blackClockDisplay) this.blackClockDisplay.textContent = this.formatClockTime(state.blackSeconds);
+		if (this.whiteClockSide) this.whiteClockSide.setAttribute('aria-current', String(state.activeColor === 'white'));
+		if (this.blackClockSide) this.blackClockSide.setAttribute('aria-current', String(state.activeColor === 'black'));
+	}
+
+	updateClockControls() {
+		const running = Boolean(this.clock && this.clock.running);
+		const finished = Boolean(this.clock && this.clock.flaggedColor);
+		if (this.clockPreset) this.clockPreset.disabled = Boolean(this.clock) || finished || this.gameOver;
+		if (this.clockStartButton) {
+			this.clockStartButton.textContent = this.clock ? 'Resume clock' : 'Start clock';
+			this.clockStartButton.disabled = running || finished || this.gameOver;
+		}
+		if (this.clockPauseButton) this.clockPauseButton.disabled = !running || this.gameOver;
+	}
+
+	startClockFromPreset() {
+		if (this.gameOver) return false;
+		if (this.clock) {
+			if (this.clock.flaggedColor) return false;
+			const resumed = this.clock.resume();
+			if (resumed && this.clockStatus) this.clockStatus.textContent = 'Clock resumed.';
+			this.updateClockControls();
+			return resumed;
+		}
+		const preset = this.clockPreset && getChessClockPreset(this.clockPreset.value);
+		if (!preset) return false;
+		const clock = new ChessClock({
+			whiteSeconds: preset.baseSeconds,
+			blackSeconds: preset.baseSeconds,
+			incrementSeconds: preset.incrementSeconds,
+			activeColor: this.turn,
+			onTick: state => this.updateClockDisplay(state),
+		});
+		const started = this.attachClock(clock);
+		if (started && this.clockStatus) this.clockStatus.textContent = `${preset.label} clock started.`;
+		this.updateClockControls();
+		return started;
+	}
+
+	pauseClock() {
+		if (!this.clock || !this.clock.pause()) return false;
+		if (this.clockStatus) this.clockStatus.textContent = 'Clock paused.';
+		this.updateClockControls();
+		return true;
 	}
 
 	attachClock(clock) {
@@ -734,6 +803,7 @@ class Game {
 		if (this.gameOver) return false;
 		this.gameOver = true;
 		if (this.clock && typeof this.clock.stop === 'function') this.clock.stop();
+		this.updateClockControls();
 		const endScene = document.getElementById('endscene');
 		const result = endScene.getElementsByClassName('winning-sign')[0];
 		result.textContent = message;

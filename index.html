@@ -197,6 +197,26 @@
 			<p id="game-status" class="game-status" role="status" aria-live="polite" aria-atomic="true">White to move.</p>
 			<p id="selection-status" class="visually-hidden" role="status" aria-live="polite" aria-atomic="true">Select a piece to hear its legal destinations.</p>
 		</div>
+		<section class="chess-clock" aria-labelledby="clock-title">
+			<h2 id="clock-title">Chess clock</h2>
+			<div class="clock-readouts" role="group" aria-label="Remaining time">
+				<div id="white-clock-side" class="clock-side" aria-current="false"><span>White</span><time id="white-clock" role="timer" aria-live="off">5:00</time></div>
+				<div id="black-clock-side" class="clock-side" aria-current="false"><span>Black</span><time id="black-clock" role="timer" aria-live="off">5:00</time></div>
+			</div>
+			<div class="clock-controls">
+				<label for="clock-preset">Time control</label>
+				<select id="clock-preset">
+					<option value="bullet-1-0">Bullet 1+0</option>
+					<option value="blitz-3-2">Blitz 3+2</option>
+					<option value="blitz-5-0" selected>Blitz 5+0</option>
+					<option value="rapid-10-0">Rapid 10+0</option>
+					<option value="rapid-15-10">Rapid 15+10</option>
+				</select>
+				<button id="clock-start" type="button">Start clock</button>
+				<button id="clock-pause" type="button" disabled>Pause clock</button>
+			</div>
+			<p id="clock-status" class="clock-status" role="status" aria-live="polite" aria-atomic="true">Clock not started.</p>
+		</section>
 		<section class="move-history" aria-labelledby="move-history-title">
 			<h2 id="move-history-title">Move history</h2>
 			<div class="history-controls" role="group" aria-label="Move history controls">
@@ -224,9 +244,10 @@
 <script type="text/javascript" src="./src/pieces/Rook.js"></script>
 <script type="text/javascript" src="./src/pieces/Bishop.js"></script>
 <script type="text/javascript" src="./src/pieces/Knight.js"></script>
-<script type="text/javascript" src="./src/pieces/Pawn.js"></script>
+	<script type="text/javascript" src="./src/pieces/Pawn.js"></script>
 
-	<script type="text/javascript" src="./src/Game.js"></script>
+	<script type="text/javascript" src="./src/chess-clock.js"></script>
+		<script type="text/javascript" src="./src/Game.js"></script>
 	<script type="text/javascript" src="./src/board-orientation.js"></script>
 
 </body>

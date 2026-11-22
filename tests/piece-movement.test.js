@@ -8,6 +8,8 @@ const root = path.join(__dirname, '..');
 const context = vm.createContext({
   console: { log() {} },
   document: { getElementById: (id) => ({ id }) },
+  setInterval: () => 1,
+  clearInterval: () => {},
   exports: {},
 });
 
@@ -140,6 +142,47 @@ test('chess clock presets and increments add time to the side that just complete
 	assert.equal(clock.switchActiveSide(), true);
 	assert.equal(clock.getRemainingSeconds('black'), 6, 'black receives the same increment after its move');
 	assert.throws(() => new (pieceClass('ChessClock'))({ incrementSeconds: -1, setTimer: () => 1, clearTimer() {} }), /nonnegative/);
+});
+
+test('clock controls start a selected preset, pause and resume, and update accessible readouts', () => {
+	const makeButton = () => ({ disabled: false, textContent: '', listeners: {}, addEventListener(type, callback) { this.listeners[type] = callback; } });
+	const makeSide = () => ({ attributes: {}, setAttribute(name, value) { this.attributes[name] = value; } });
+	const game = createGame([], null);
+	game.turn = 'black';
+	game.gameOver = false;
+	game.clockPreset = { value: 'blitz-3-2', disabled: false };
+	game.clockStartButton = makeButton();
+	game.clockPauseButton = makeButton();
+	game.clockStatus = { textContent: '' };
+	game.whiteClockDisplay = { textContent: '' };
+	game.blackClockDisplay = { textContent: '' };
+	game.whiteClockSide = makeSide();
+	game.blackClockSide = makeSide();
+	game.addClockControls();
+	assert.equal(game.clockStartButton.disabled, false);
+	assert.equal(game.clockPauseButton.disabled, true);
+	game.clockStartButton.listeners.click();
+	assert.equal(game.clock.activeColor, 'black');
+	assert.equal(game.clock.getRemainingSeconds('white'), 180);
+	assert.equal(game.clock.incrementMilliseconds, 2000);
+	assert.equal(game.clockStatus.textContent, 'Blitz 3+2 clock started.');
+	assert.equal(game.clockPreset.disabled, true);
+	assert.equal(game.clockPauseButton.disabled, false);
+	assert.equal(game.clockStartButton.textContent, 'Resume clock');
+	game.clockPauseButton.listeners.click();
+	assert.equal(game.clock.running, false);
+	assert.equal(game.clockStatus.textContent, 'Clock paused.');
+	assert.equal(game.clockPreset.disabled, true, 'a paused clock keeps the original preset until a new game');
+	assert.equal(game.clockPauseButton.disabled, true);
+	game.clockStartButton.listeners.click();
+	assert.equal(game.clock.running, true);
+	assert.equal(game.clockStatus.textContent, 'Clock resumed.');
+	game.updateClockDisplay({ whiteSeconds: 65, blackSeconds: 600, activeColor: 'white' });
+	assert.equal(game.whiteClockDisplay.textContent, '1:05');
+	assert.equal(game.blackClockDisplay.textContent, '10:00');
+	assert.equal(game.whiteClockSide.attributes['aria-current'], 'true');
+	assert.equal(game.blackClockSide.attributes['aria-current'], 'false');
+	assert.equal(game.formatClockTime(-1), '0:00');
 });
 
 test('last-move highlight marks every origin and destination and replaces the prior move', () => {

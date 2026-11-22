@@ -248,6 +248,80 @@ img{
 .game-status.is-check {
 	color: #b71c1c;
 }
+.chess-clock {
+	width: min(94vw, 600px);
+	margin: 1rem auto 0;
+	padding: 0.9rem 1rem;
+	border: 1px solid #aab2b5;
+	border-radius: 0.5rem;
+	background: #f5f6f6;
+	color: #263238;
+	box-sizing: border-box;
+}
+.chess-clock h2 {
+	margin-bottom: 0.65rem;
+	font-size: 1.15rem;
+}
+.clock-readouts {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: 0.6rem;
+}
+.clock-side {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 0.5rem;
+	padding: 0.55rem 0.7rem;
+	border: 2px solid transparent;
+	border-radius: 0.35rem;
+	background: #e2e6e8;
+}
+.clock-side[aria-current="true"] {
+	border-color: #087f70;
+	background: #d8eee9;
+	font-weight: 700;
+}
+.clock-side time {
+	font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+	font-size: 1.35rem;
+	font-variant-numeric: tabular-nums;
+}
+.clock-controls {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0.5rem;
+	margin-top: 0.7rem;
+}
+.clock-controls button,
+.clock-controls select {
+	min-height: 2.5rem;
+	padding: 0.45rem 0.7rem;
+	border: 1px solid #52666d;
+	border-radius: 0.3rem;
+	background: #263238;
+	color: #fff;
+	font: inherit;
+}
+.clock-controls button { cursor: pointer; }
+.clock-controls button:focus-visible,
+.clock-controls select:focus-visible {
+	outline: 3px solid #00897b;
+	outline-offset: 2px;
+}
+.clock-controls button:disabled,
+.clock-controls select:disabled {
+	background: #d5dadd;
+	color: #58666b;
+	cursor: not-allowed;
+}
+.clock-status {
+	min-height: 1.3em;
+	margin-top: 0.55rem;
+	color: #58666b;
+	font-size: 0.9rem;
+}
 .winning-sign:first-letter{
 	text-transform: uppercase;
 }
@@ -396,5 +470,11 @@ img{
 @media (max-width: 640px) {
 	.move-history {
 		width: min(94vw, 600px);
+	}
+	.clock-controls label {
+		flex-basis: 100%;
+	}
+	.clock-controls select {
+		flex: 1 1 100%;
 	}
 }
