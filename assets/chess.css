@@ -75,16 +75,23 @@ img{
 	height: 75px; 
 }
 .allowed{
-	opacity: .8;
-	background: radial-gradient(#333,#222 )!important;
-	/*-webkit-box-shadow: inset 1px -4px 92px 0px rgba(0,0,0,0.75);
-	-moz-box-shadow: inset 1px -4px 92px 0px rgba(0,0,0,0.75);
-	box-shadow: inset 1px -4px 92px 0px rgba(0,0,0,0.75);*/
-	border:1px solid black !important;
+	background: radial-gradient(circle, #087f70 0 15%, transparent 17%) !important;
+	box-shadow: inset 0 0 0 2px #075e54;
 }
-.clicked-square{
-	background: radial-gradient(#333,#222 )!important;
-	border:1px solid black !important;
+.selected-square {
+	background: #ffe082 !important;
+	box-shadow: inset 0 0 0 4px #8a5a00;
+}
+.visually-hidden {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	padding: 0;
+	margin: -1px;
+	overflow: hidden;
+	clip: rect(0, 0, 0, 0);
+	white-space: nowrap;
+	border: 0;
 }
 #sematary img{
 	transform: rotateZ(0);

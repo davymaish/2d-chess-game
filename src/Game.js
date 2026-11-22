@@ -29,6 +29,7 @@ class Game {
 		this.recordPosition();
 		this.turnSign = document.getElementById('turn');
 		this.gameStatus = document.getElementById('game-status');
+		this.selectionStatus = document.getElementById('selection-status');
 		this.clickedPiece = null;
 		this.allowedMoves = null;
 		this.addEventListeners();
@@ -66,24 +67,40 @@ class Game {
 		const name = event.target.getAttribute('id');
 		const allowedMoves = this.getPieceAllowedMoves(event, name);
 		if (allowedMoves) {
-			const position = this.getPieceByName(name).position;
+			const piece = this.getPieceByName(name);
+			const position = piece.position;
 			const clickedSquare = document.getElementById(position);
 
 			/*if (event.type == 'click' && this.clickedPiece && this.clickedPiece.name == name) {
 				this.setClickedPiece(null);
 				return this.clearSquares();
 			}*/
-			clickedSquare.classList.add('clicked-square');
+			clickedSquare.classList.add('selected-square');
 
 			allowedMoves.forEach( allowedMove => {
 				if (document.body.contains(document.getElementById(allowedMove))) {
 					document.getElementById(allowedMove).classList.add('allowed');		
 				}	
 			});
+			this.announceSelection(piece, allowedMoves);
 		}
 		else{
 			this.clearSquares();
 		}
+	}
+
+	getSquareName(position) {
+		const square = parseInt(position);
+		return `${String.fromCharCode(96 + square % 10)}${Math.floor(square / 10)}`;
+	}
+
+	announceSelection(piece, allowedMoves) {
+		if (!this.selectionStatus) return;
+		const destinations = allowedMoves.map(position => this.getSquareName(position));
+		const destinationMessage = destinations.length
+			? `Legal destinations (${destinations.length}): ${destinations.join(', ')}.`
+			: 'No legal destinations.';
+		this.selectionStatus.textContent = `${piece.color} ${piece.rank} selected on ${this.getSquareName(piece.position)}. ${destinationMessage}`;
 	}
 
 	changeTurn() {
@@ -794,8 +811,9 @@ class Game {
 		this.allowedMoves = null;
 		const allowedSquares = this.board.querySelectorAll('.allowed');
 		allowedSquares.forEach( allowedSquare => allowedSquare.classList.remove('allowed') );
-		const cllickedSquare = document.getElementsByClassName('clicked-square')[0];
-		if (cllickedSquare) cllickedSquare.classList.remove('clicked-square');
+		const selectedSquares = this.board.querySelectorAll('.selected-square');
+		selectedSquares.forEach(selectedSquare => selectedSquare.classList.remove('selected-square'));
+		if (this.selectionStatus) this.selectionStatus.textContent = '';
 	}
 
 	checkmate(color){
