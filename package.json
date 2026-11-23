@@ -1,10 +1,19 @@
 {
-  "name": "2d-chess-game",
-  "version": "1.0.0",
+  "name": "@2d-chess/v2",
+  "version": "2.0.0",
   "private": true,
-  "description": "Browser-based 2D chess game",
+  "packageManager": "pnpm@11.25.0",
+  "engines": {
+    "node": ">=22.0.0"
+  },
   "scripts": {
-    "test": "node --test",
-    "test:responsive": "python3 tests/responsive-layout.py"
+    "build": "pnpm -r build",
+    "dev": "pnpm --filter @2d-chess/web dev",
+    "test": "pnpm -r test",
+    "typecheck": "pnpm -r typecheck"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.4"
   }
 }
