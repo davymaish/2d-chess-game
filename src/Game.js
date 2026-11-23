@@ -18,6 +18,9 @@ class Game {
 		this.emptyMoveHistory = document.getElementById('move-history-empty');
 		this.moveHistory = [];
 		this.replayCursor = typeof ReplayCursor === 'undefined' ? null : new ReplayCursor(this.moveHistory);
+		this.replaySnapshots = new Map();
+		this.isReplayRendering = false;
+		this.isReplayViewing = false;
 		this.pendingHistoryMove = null;
 		this.undoStack = [];
 		this.redoStack = [];
@@ -63,6 +66,7 @@ class Game {
 		this.updateCheckStatus();
 		const saveRead = inspectGameSaveStorage();
 		this.addSavedGameControls(saveRead.save, saveRead.status);
+		this.resetReplaySnapshots();
 	}
 
 	addEventListeners() {
@@ -142,6 +146,7 @@ class Game {
 	}
 
 	pieceMove(event) {
+		if (this.isReplayViewing) return false;
 		if (this.gameOver) {
 			this.clearSquares();
 			return false;
@@ -400,6 +405,7 @@ class Game {
 	}
 
 	movePiece(event, square='') {
+		if (this.isReplayViewing) return false;
 		if (this.gameOver) {
 			if (event) event.preventDefault();
 			return false;
@@ -676,6 +682,7 @@ class Game {
 	}
 
 	syncReplayCursor() {
+		if (this.isReplayRendering) return this.replayCursor ? this.replayCursor.getState() : false;
 		if (typeof ReplayCursor === 'undefined') return { index: -1, totalMoves: this.moveHistory.length, currentMove: null, atStart: true, atEnd: this.moveHistory.length === 0 };
 		const currentIndex = this.replayCursor ? this.replayCursor.index : -1;
 		this.replayCursor = new ReplayCursor(this.moveHistory || []);
@@ -691,10 +698,19 @@ class Game {
 
 	stepReplay(direction) {
 		if (typeof ReplayCursor === 'undefined') return false;
+		if (this.replaySnapshots instanceof Map && this.replaySnapshots.size) return this.navigateReplay(direction);
 		const cursor = this.replayCursor || (this.replayCursor = new ReplayCursor(this.moveHistory || []));
 		if (direction === 'next') return cursor.next();
 		if (direction === 'previous') return cursor.previous();
 		return false;
+	}
+
+	resetReplaySnapshots(state = this.captureMoveState()) {
+		this.replaySnapshots = new Map([[state.moveHistory.length, state]]);
+		this.isReplayViewing = false;
+		if (this.replayCursor && state.moveHistory.length) this.replayCursor.seek(state.moveHistory.length - 1);
+		this.updateReplayControls();
+		return this.replaySnapshots;
 	}
 
 	recordHalfmove(piece, isCapture) {
@@ -798,14 +814,21 @@ class Game {
 		if (!Array.isArray(this.undoStack)) this.undoStack = [];
 		if (!Array.isArray(this.redoStack)) this.redoStack = [];
 		this.pendingUndoEntry.after = this.captureMoveState();
+		if (!(this.replaySnapshots instanceof Map)) this.replaySnapshots = new Map();
+		const beforeIndex = this.pendingUndoEntry.before.moveHistory.length;
+		for (const index of this.replaySnapshots.keys()) if (index > beforeIndex) this.replaySnapshots.delete(index);
+		if (!this.replaySnapshots.has(beforeIndex)) this.replaySnapshots.set(beforeIndex, this.pendingUndoEntry.before);
+		this.replaySnapshots.set(beforeIndex + 1, this.pendingUndoEntry.after);
+		if (this.replayCursor && this.replayCursor.moves.length) this.replayCursor.seek(this.replayCursor.moves.length - 1);
 		this.undoStack.push(this.pendingUndoEntry);
 		this.redoStack.length = 0;
 		this.pendingUndoEntry = null;
 		this.updateHistoryControls();
+		this.updateReplayControls();
 	}
 
 	undoMove() {
-		if (this.gameOver) return false;
+		if (this.gameOver || this.isReplayViewing) return false;
 		if (!Array.isArray(this.undoStack) || this.undoStack.length === 0) return false;
 		const entry = this.undoStack[this.undoStack.length - 1];
 		if (!entry.supported) return false;
@@ -816,7 +839,7 @@ class Game {
 	}
 
 	redoMove() {
-		if (this.gameOver) return false;
+		if (this.gameOver || this.isReplayViewing) return false;
 		if (!Array.isArray(this.redoStack) || this.redoStack.length === 0) return false;
 		const entry = this.redoStack.pop();
 		this.undoStack.push(entry);
@@ -832,6 +855,7 @@ class Game {
 			...this.pieces,
 			...(entry ? entry.before.pieces.map(pieceState => pieceState.piece) : []),
 			...(entry && entry.after ? entry.after.pieces.map(pieceState => pieceState.piece) : []),
+			...(this.replaySnapshots instanceof Map ? [...this.replaySnapshots.values()].flatMap(snapshot => snapshot.pieces.map(pieceState => pieceState.piece)) : []),
 		]);
 		knownPieces.forEach(piece => {
 			const pieceState = activePieces.get(piece);
@@ -860,7 +884,10 @@ class Game {
 		this.enPassantPawn = state.enPassantPawn;
 		this.positionCounts = new Map(state.positionCounts);
 		this.moveHistory = [...state.moveHistory];
-		this.syncReplayCursor();
+		if (!this.isReplayRendering) {
+			this.syncReplayCursor();
+			if (this.replayCursor && this.replayCursor.moves.length) this.replayCursor.seek(this.replayCursor.moves.length - 1);
+		}
 			this.lastMove = state.lastMove ? [...state.lastMove] : null;
 			if (this.turnSign) this.turnSign.innerHTML = this.turn === 'white' ? "White's Turn" : "Black's Turn";
 			this.updateBoardAccessibleNames();
@@ -878,9 +905,11 @@ class Game {
 				if (square.classList && typeof square.classList.remove === 'function') square.classList.remove('last-move');
 			});
 			}
-			this.refreshOutcomeDisplay();
-			if (this.gameOver) clearGameSaveFromStorage();
-			else this.persistCurrentGame();
+			if (!this.isReplayRendering) {
+				this.refreshOutcomeDisplay();
+				if (this.gameOver) clearGameSaveFromStorage();
+				else this.persistCurrentGame();
+			}
 		}
 
 	renderMoveHistory() {
@@ -943,22 +972,41 @@ class Game {
 
 	navigateReplay(action) {
 		const cursor = this.replayCursor;
-		if (!cursor) return false;
-		const actions = { first: () => cursor.first(), previous: () => cursor.previous(), next: () => cursor.next(), last: () => cursor.last() };
-		if (!actions[action]) return false;
-		const state = actions[action]();
-		if (state) this.updateReplayControls();
+		if (!cursor || !(this.replaySnapshots instanceof Map) || !this.replaySnapshots.size) return false;
+		const positions = [...this.replaySnapshots.keys()].sort((a, b) => a - b);
+		const currentPosition = cursor.index + 1;
+		let nextPosition;
+		if (action === 'first') nextPosition = positions[0];
+		else if (action === 'last') nextPosition = positions[positions.length - 1];
+		else if (action === 'previous') nextPosition = currentPosition - 1;
+		else if (action === 'next') nextPosition = currentPosition + 1;
+		else return false;
+		if (!this.replaySnapshots.has(nextPosition) || nextPosition === currentPosition) return false;
+		const state = cursor.seek(nextPosition - 1);
+		if (!state) return false;
+		this.isReplayViewing = nextPosition !== positions[positions.length - 1];
+		this.isReplayRendering = true;
+		try {
+			this.restoreMoveState(this.replaySnapshots.get(nextPosition));
+		}
+		finally {
+			this.isReplayRendering = false;
+		}
+		this.updateReplayControls();
 		return state;
 	}
 
 	updateReplayControls() {
 		if (!this.replayButtons) return false;
 		const state = this.getReplayState();
-		const empty = state.totalMoves === 0;
-		if (this.replayButtons.first) this.replayButtons.first.disabled = empty || state.atStart;
-		if (this.replayButtons.previous) this.replayButtons.previous.disabled = empty || state.atStart;
-		if (this.replayButtons.next) this.replayButtons.next.disabled = empty || state.atEnd;
-		if (this.replayButtons.last) this.replayButtons.last.disabled = empty || state.atEnd;
+		const positions = this.replaySnapshots instanceof Map ? [...this.replaySnapshots.keys()].sort((a, b) => a - b) : [];
+		const currentPosition = state.index + 1;
+		const firstPosition = positions[0];
+		const lastPosition = positions[positions.length - 1];
+		if (this.replayButtons.first) this.replayButtons.first.disabled = positions.length < 2 || currentPosition <= firstPosition;
+		if (this.replayButtons.previous) this.replayButtons.previous.disabled = positions.length < 2 || !this.replaySnapshots.has(currentPosition - 1);
+		if (this.replayButtons.next) this.replayButtons.next.disabled = positions.length < 2 || !this.replaySnapshots.has(currentPosition + 1);
+		if (this.replayButtons.last) this.replayButtons.last.disabled = positions.length < 2 || currentPosition >= lastPosition;
 		if (this.replayPosition) this.replayPosition.textContent = state.currentMove
 			? `Replay position ${state.index + 1} of ${state.totalMoves}: ${state.currentMove}`
 			: `Replay position: before the first move (${state.totalMoves} ${state.totalMoves === 1 ? 'move' : 'moves'}).`;
@@ -966,8 +1014,8 @@ class Game {
 }
 
 	updateHistoryControls() {
-		if (this.undoButton) this.undoButton.disabled = this.gameOver || !this.undoStack || this.undoStack.length === 0;
-		if (this.redoButton) this.redoButton.disabled = this.gameOver || !this.redoStack || this.redoStack.length === 0;
+		if (this.undoButton) this.undoButton.disabled = this.gameOver || this.isReplayViewing || !this.undoStack || this.undoStack.length === 0;
+		if (this.redoButton) this.redoButton.disabled = this.gameOver || this.isReplayViewing || !this.redoStack || this.redoStack.length === 0;
 	}
 
 	addGameControls() {
@@ -1357,6 +1405,7 @@ class Game {
 		}
 		this.updateClockControls();
 		this.updateCheckStatus();
+		this.resetReplaySnapshots();
 		return true;
 	}
 
