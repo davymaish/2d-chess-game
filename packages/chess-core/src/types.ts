@@ -74,7 +74,8 @@ export type GameStatus =
   | { readonly kind: "active" }
   | { readonly kind: "check" }
   | { readonly kind: "checkmate"; readonly winner: Color }
-  | { readonly kind: "stalemate" };
+  | { readonly kind: "stalemate" }
+  | { readonly kind: "draw"; readonly reason: "insufficient-material" | "fifty-move" | "threefold-repetition" };
 
 export type PositionValidationCode =
   | "invalid-position"
