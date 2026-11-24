@@ -82,6 +82,16 @@ describe("game status", () => {
       "black",
     );
     expect(getGameStatus(stalemate)).toEqual({ kind: "stalemate" });
+    const stalemateAtThreshold = position(
+      [
+        placement("f6", "white", "king"),
+        placement("f7", "white", "queen"),
+        placement("h8", "black", "king"),
+      ],
+      "black",
+      { halfmoveClock: 100 },
+    );
+    expect(getGameStatus(stalemateAtThreshold)).toEqual({ kind: "stalemate" });
   });
 
   it("returns validation errors instead of classifying a malformed position", () => {
@@ -98,6 +108,30 @@ describe("game status", () => {
       "white",
     );
     expect(getGameStatus(kingsOnly)).toEqual({ kind: "draw", reason: "insufficient-material" });
+
+    for (const minor of ["bishop", "knight"] as const) {
+      const singleMinor = position(
+        [
+          placement("a1", "white", "king"),
+          placement("h8", "black", "king"),
+          placement("c1", "white", minor),
+        ],
+        "white",
+      );
+      expect(getGameStatus(singleMinor)).toEqual({ kind: "draw", reason: "insufficient-material" });
+    }
+
+    for (const major of ["pawn", "rook", "queen"] as const) {
+      const matingMaterial = position(
+        [
+          placement("a1", "white", "king"),
+          placement("h8", "black", "king"),
+          placement("c2", "white", major),
+        ],
+        "white",
+      );
+      expect(getGameStatus(matingMaterial).kind).toBe("active");
+    }
 
     const sameColorBishops = position(
       [
@@ -197,6 +231,20 @@ describe("game status", () => {
     const spuriousTarget = position(noCapturingPawn, "white", { enPassantTarget: "d6" });
     const noTarget = position(noCapturingPawn, "white");
     expect(getGameStatus(spuriousTarget, [noTarget, noTarget])).toEqual({
+      kind: "draw",
+      reason: "threefold-repetition",
+    });
+
+    const pinnedPieces = [
+      placement("h5", "white", "king"),
+      placement("a8", "black", "king"),
+      placement("g5", "white", "pawn"),
+      placement("a5", "black", "rook"),
+      placement("f5", "black", "pawn"),
+    ];
+    const pinnedWithTarget = position(pinnedPieces, "white", { enPassantTarget: "f6" });
+    const pinnedWithoutTarget = position(pinnedPieces, "white");
+    expect(getGameStatus(pinnedWithTarget, [pinnedWithoutTarget, pinnedWithoutTarget])).toEqual({
       kind: "draw",
       reason: "threefold-repetition",
     });
