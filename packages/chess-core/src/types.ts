@@ -69,6 +69,13 @@ export type MoveResult =
   | { readonly kind: "accepted"; readonly position: Position; readonly move: MoveRecord }
   | { readonly kind: "rejected"; readonly reason: MoveRejectionReason };
 
+export type GameStatus =
+  | { readonly kind: "invalid-position"; readonly errors: readonly PositionValidationError[] }
+  | { readonly kind: "active" }
+  | { readonly kind: "check" }
+  | { readonly kind: "checkmate"; readonly winner: Color }
+  | { readonly kind: "stalemate" };
+
 export type PositionValidationCode =
   | "invalid-position"
   | "invalid-square"

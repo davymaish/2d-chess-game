@@ -5,6 +5,7 @@ import type {
   ChessPiece,
   Color,
   File,
+  GameStatus,
   MoveIntent,
   MoveRecord,
   MoveResult,
@@ -367,4 +368,41 @@ export function applyLegalMove(position: Position, intent: MoveIntent): MoveResu
     return { kind: "rejected", reason: "illegal-move" };
   }
   return result;
+}
+
+/** Classifies check, checkmate, and stalemate; draw adjudication that needs game history is separate. */
+export function getGameStatus(position: Position): GameStatus {
+  const validatedPosition = createPosition(position);
+  if (!validatedPosition.ok) return { kind: "invalid-position", errors: validatedPosition.errors };
+  const current = validatedPosition.position;
+  const inCheck = isKingAttacked(current, current.activeColor);
+  const ranks: readonly Rank[] = [1, 2, 3, 4, 5, 6, 7, 8];
+
+  for (const entry of current.pieces) {
+    if (entry.piece.color !== current.activeColor) continue;
+    for (const file of FILES) {
+      for (const rank of ranks) {
+        const to = { file, rank };
+        const reachesPromotionRank = entry.piece.kind === "pawn" &&
+          ((entry.piece.color === "white" && rank === 8) || (entry.piece.color === "black" && rank === 1));
+        const promotions: readonly (PromotionPieceKind | undefined)[] = reachesPromotionRank
+          ? PROMOTION_KINDS
+          : [undefined];
+        for (const promotion of promotions) {
+          const intent: MoveIntent = {
+            from: entry.square,
+            to,
+            ...(promotion ? { promotion } : {}),
+          };
+          if (applyLegalMove(current, intent).kind === "accepted") {
+            return inCheck ? { kind: "check" } : { kind: "active" };
+          }
+        }
+      }
+    }
+  }
+
+  return inCheck
+    ? { kind: "checkmate", winner: opposite(current.activeColor) }
+    : { kind: "stalemate" };
 }
