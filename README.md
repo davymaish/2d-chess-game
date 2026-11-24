@@ -15,3 +15,5 @@ Use Node.js 22 or newer and pnpm 11.25.0 (pinned through `packageManager`). Run 
 ## Migration policy
 
 Port V1 behavior in small, independently tested slices. Re-express domain logic in `packages/chess-core` where appropriate; do not transplant V1's DOM-driven architecture. Keep migration decisions and compatibility requirements explicit in each change.
+
+The migration-only modernization stages, V1 behavior inventory, and current progress are tracked in [the V2 migration plan](docs/v2-migration-plan.md). This is separate from the product feature roadmap.
