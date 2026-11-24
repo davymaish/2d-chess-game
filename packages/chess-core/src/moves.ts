@@ -228,9 +228,69 @@ export function applyPseudoLegalMove(position: Position, intent: MoveIntent): Mo
   };
 }
 
-/** Applies a currently supported move only when the result leaves the mover's king safe; castling and en passant remain unsupported. */
+function applyEnPassantMove(position: Position, intent: MoveIntent): MoveResult | null {
+  const validatedPosition = createPosition(position);
+  if (!validatedPosition.ok) return { kind: "rejected", reason: "invalid-position" };
+  const current = validatedPosition.position;
+  if (!isRecord(intent) || !isSquare(intent.from) || !isSquare(intent.to) || intent.promotion !== undefined) {
+    return null;
+  }
+
+  const from = parseSquare(formatSquare(intent.from));
+  const to = parseSquare(formatSquare(intent.to));
+  if (!from || !to || !current.enPassantTarget || !sameSquare(to, current.enPassantTarget)) return null;
+
+  const movingPiece = pieceAt(current, from);
+  const direction = current.activeColor === "white" ? 1 : -1;
+  const startingRank = current.activeColor === "white" ? 5 : 4;
+  const targetRank = current.activeColor === "white" ? 6 : 3;
+  const fileDelta = FILES.indexOf(to.file) - FILES.indexOf(from.file);
+  if (
+    !movingPiece ||
+    movingPiece.color !== current.activeColor ||
+    movingPiece.kind !== "pawn" ||
+    Math.abs(fileDelta) !== 1 ||
+    from.rank !== startingRank ||
+    to.rank !== targetRank ||
+    to.rank - from.rank !== direction ||
+    pieceAt(current, to) !== null
+  ) {
+    return null;
+  }
+
+  const capturedSquare = { file: to.file, rank: from.rank as Rank };
+  const capturedPiece = pieceAt(current, capturedSquare);
+  if (!capturedPiece || capturedPiece.color === movingPiece.color || capturedPiece.kind !== "pawn") return null;
+
+  const nextPieces: PieceOnSquare[] = current.pieces
+    .filter((entry) => !sameSquare(entry.square, from) && !sameSquare(entry.square, capturedSquare))
+    .map((entry) => ({ square: entry.square, piece: entry.piece }));
+  nextPieces.push({ square: to, piece: movingPiece });
+  const nextPosition = createPosition({
+    pieces: nextPieces,
+    activeColor: opposite(current.activeColor),
+    castlingRights: current.castlingRights,
+    enPassantTarget: null,
+    halfmoveClock: 0,
+    fullmoveNumber: current.fullmoveNumber + (movingPiece.color === "black" ? 1 : 0),
+  });
+  if (!nextPosition.ok) return { kind: "rejected", reason: "invalid-position" };
+
+  return {
+    kind: "accepted",
+    position: nextPosition.position,
+    move: freezeMoveRecord(from, to, movingPiece, capturedPiece),
+  };
+}
+
+/** Applies a currently supported move only when the result leaves the mover's king safe; castling remains unsupported. */
 export function applyLegalMove(position: Position, intent: MoveIntent): MoveResult {
-  const result = applyPseudoLegalMove(position, intent);
+  const pseudoLegalResult = applyPseudoLegalMove(position, intent);
+  const result = pseudoLegalResult.kind === "accepted"
+    ? pseudoLegalResult
+    : pseudoLegalResult.reason === "illegal-move"
+      ? applyEnPassantMove(position, intent) ?? pseudoLegalResult
+      : pseudoLegalResult;
   if (result.kind !== "accepted") return result;
   if (isKingAttacked(result.position, result.move.piece.color)) {
     return { kind: "rejected", reason: "illegal-move" };
