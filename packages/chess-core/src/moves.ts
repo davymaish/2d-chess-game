@@ -370,15 +370,62 @@ export function applyLegalMove(position: Position, intent: MoveIntent): MoveResu
   return result;
 }
 
-/** Classifies check, checkmate, and stalemate; draw adjudication that needs game history is separate. */
-export function getGameStatus(position: Position): GameStatus {
+function hasLegalEnPassantCapture(position: Position): boolean {
+  const target = position.enPassantTarget;
+  if (!target) return false;
+  return position.pieces.some((entry) =>
+    entry.piece.color === position.activeColor &&
+    entry.piece.kind === "pawn" &&
+    applyLegalMove(position, { from: entry.square, to: target }).kind === "accepted"
+  );
+}
+
+function repetitionIdentity(position: Position): string {
+  const pieces = position.pieces
+    .map(({ square, piece }) => `${formatSquare(square)}:${piece.color}:${piece.kind}`)
+    .sort();
+  const castlingRights = [...position.castlingRights].sort();
+  const enPassantTarget = hasLegalEnPassantCapture(position) && position.enPassantTarget
+    ? formatSquare(position.enPassantTarget)
+    : null;
+  return JSON.stringify([pieces, position.activeColor, castlingRights, enPassantTarget]);
+}
+
+function hasInsufficientMaterial(position: Position): boolean {
+  const material = position.pieces.filter((entry) => entry.piece.kind !== "king");
+  if (material.length === 0) return true;
+  if (material.some(({ piece }) => piece.kind !== "bishop" && piece.kind !== "knight")) return false;
+  if (material.length === 1) return true;
+  if (material.every(({ piece }) => piece.kind === "bishop")) {
+    const colors = new Set(material.map(({ square }) => (FILES.indexOf(square.file) + square.rank) % 2));
+    return colors.size === 1;
+  }
+  return false;
+}
+
+/** Classifies check, terminal outcomes, and supported draws; priorPositions excludes the current position. */
+export function getGameStatus(position: Position, priorPositions: readonly Position[] = []): GameStatus {
   const validatedPosition = createPosition(position);
   if (!validatedPosition.ok) return { kind: "invalid-position", errors: validatedPosition.errors };
+  if (!Array.isArray(priorPositions)) {
+    return {
+      kind: "invalid-position",
+      errors: [{ code: "invalid-position", message: "Prior positions must be an array." }],
+    };
+  }
+  const validatedHistory: Position[] = [];
+  for (const previous of priorPositions) {
+    const validatedPrevious = createPosition(previous);
+    if (!validatedPrevious.ok) return { kind: "invalid-position", errors: validatedPrevious.errors };
+    validatedHistory.push(validatedPrevious.position);
+  }
+
   const current = validatedPosition.position;
   const inCheck = isKingAttacked(current, current.activeColor);
   const ranks: readonly Rank[] = [1, 2, 3, 4, 5, 6, 7, 8];
+  let hasLegalMove = false;
 
-  for (const entry of current.pieces) {
+  moveSearch: for (const entry of current.pieces) {
     if (entry.piece.color !== current.activeColor) continue;
     for (const file of FILES) {
       for (const rank of ranks) {
@@ -395,14 +442,27 @@ export function getGameStatus(position: Position): GameStatus {
             ...(promotion ? { promotion } : {}),
           };
           if (applyLegalMove(current, intent).kind === "accepted") {
-            return inCheck ? { kind: "check" } : { kind: "active" };
+            hasLegalMove = true;
+            break moveSearch;
           }
         }
       }
     }
   }
 
-  return inCheck
-    ? { kind: "checkmate", winner: opposite(current.activeColor) }
-    : { kind: "stalemate" };
+  if (!hasLegalMove) {
+    return inCheck
+      ? { kind: "checkmate", winner: opposite(current.activeColor) }
+      : { kind: "stalemate" };
+  }
+  if (hasInsufficientMaterial(current)) return { kind: "draw", reason: "insufficient-material" };
+  if (current.halfmoveClock >= 100) return { kind: "draw", reason: "fifty-move" };
+
+  const currentIdentity = repetitionIdentity(current);
+  let matchingOccurrences = 1;
+  for (const previous of validatedHistory) {
+    if (repetitionIdentity(previous) === currentIdentity) matchingOccurrences += 1;
+    if (matchingOccurrences >= 3) return { kind: "draw", reason: "threefold-repetition" };
+  }
+  return inCheck ? { kind: "check" } : { kind: "active" };
 }
