@@ -224,7 +224,7 @@ describe("pseudo-legal move application", () => {
     expectRejected(move(ordinaryPawnMove, "g2", "g3", "queen"), "invalid-promotion");
   });
 
-  it("does not apply castling or en-passant capture in this move layer", () => {
+  it("does not apply castling or en-passant capture in the pseudo-legal move layer", () => {
     const kingAndRights = board([], {
       whiteKing: "e1",
       blackKing: "e8",
@@ -237,6 +237,45 @@ describe("pseudo-legal move application", () => {
       { enPassantTarget: "d6" },
     );
     expectRejected(move(enPassant, "e5", "d6"), "illegal-move");
+  });
+
+  it("applies en-passant captures for either side and updates turn metadata", () => {
+    const whiteCapture = board(
+      [placement("e5", "white", "pawn"), placement("d5", "black", "pawn")],
+      { enPassantTarget: "d6", halfmoveClock: 12, fullmoveNumber: 4 },
+    );
+    const afterWhite = expectAccepted(legalMove(whiteCapture, "e5", "d6"));
+    expect(pieceAt(afterWhite.position, square("d6"))).toEqual({ color: "white", kind: "pawn" });
+    expect(pieceAt(afterWhite.position, square("d5"))).toBeNull();
+    expect(pieceAt(afterWhite.position, square("e5"))).toBeNull();
+    expect(afterWhite.move.capturedPiece).toEqual({ color: "black", kind: "pawn" });
+    expect(afterWhite.position.activeColor).toBe("black");
+    expect(afterWhite.position.enPassantTarget).toBeNull();
+    expect(afterWhite.position.halfmoveClock).toBe(0);
+    expect(afterWhite.position.fullmoveNumber).toBe(4);
+
+    const blackCapture = board(
+      [placement("e4", "black", "pawn"), placement("d4", "white", "pawn")],
+      { activeColor: "black", enPassantTarget: "d3", fullmoveNumber: 7 },
+    );
+    const afterBlack = expectAccepted(legalMove(blackCapture, "e4", "d3"));
+    expect(pieceAt(afterBlack.position, square("d3"))).toEqual({ color: "black", kind: "pawn" });
+    expect(pieceAt(afterBlack.position, square("d4"))).toBeNull();
+    expect(afterBlack.move.capturedPiece).toEqual({ color: "white", kind: "pawn" });
+    expect(afterBlack.position.activeColor).toBe("white");
+    expect(afterBlack.position.fullmoveNumber).toBe(8);
+  });
+
+  it("rejects en passant when removing both pawns exposes the mover's king", () => {
+    const discoveredCheck = board(
+      [
+        placement("g5", "white", "pawn"),
+        placement("a5", "black", "rook"),
+        placement("f5", "black", "pawn"),
+      ],
+      { whiteKing: "h5", blackKing: "a8", enPassantTarget: "f6" },
+    );
+    expectRejected(legalMove(discoveredCheck, "g5", "f6"), "illegal-move");
   });
 
   it("keeps pseudo-legal movement separate from king-safety filtering", () => {
