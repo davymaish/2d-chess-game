@@ -283,13 +283,84 @@ function applyEnPassantMove(position: Position, intent: MoveIntent): MoveResult 
   };
 }
 
-/** Applies a currently supported move only when the result leaves the mover's king safe; castling remains unsupported. */
+function applyCastleMove(position: Position, intent: MoveIntent): MoveResult | null {
+  const validatedPosition = createPosition(position);
+  if (!validatedPosition.ok) return { kind: "rejected", reason: "invalid-position" };
+  const current = validatedPosition.position;
+  if (!isRecord(intent) || !isSquare(intent.from) || !isSquare(intent.to) || intent.promotion !== undefined) {
+    return null;
+  }
+
+  const from = parseSquare(formatSquare(intent.from));
+  const to = parseSquare(formatSquare(intent.to));
+  if (!from || !to) return null;
+  const color = current.activeColor;
+  const rank = color === "white" ? 1 : 8;
+  const king = pieceAt(current, from);
+  if (!king || king.color !== color || king.kind !== "king" || from.file !== "e" || from.rank !== rank || to.rank !== rank) {
+    return null;
+  }
+
+  const kingSide = to.file === "g";
+  const queenSide = to.file === "c";
+  if (!kingSide && !queenSide) return null;
+
+  const right: CastlingRight = color === "white"
+    ? kingSide ? "white-king-side" : "white-queen-side"
+    : kingSide ? "black-king-side" : "black-queen-side";
+  if (!current.castlingRights.includes(right) || isKingAttacked(current, color)) return null;
+
+  const rookFrom: Square = { file: kingSide ? "h" : "a", rank: rank as Rank };
+  const rookTo: Square = { file: kingSide ? "f" : "d", rank: rank as Rank };
+  const transit: Square = { file: kingSide ? "f" : "d", rank: rank as Rank };
+  const rook = pieceAt(current, rookFrom);
+  if (!rook || rook.color !== color || rook.kind !== "rook") return null;
+
+  const emptyFiles = kingSide ? ["f", "g"] as const : ["b", "c", "d"] as const;
+  if (emptyFiles.some((file) => pieceAt(current, { file, rank: rank as Rank }) !== null)) return null;
+
+  const transitPieces = current.pieces
+    .filter((entry) => !sameSquare(entry.square, from))
+    .map((entry) => ({ square: entry.square, piece: entry.piece }));
+  transitPieces.push({ square: transit, piece: king });
+  const transitPosition = createPosition({
+    pieces: transitPieces,
+    activeColor: current.activeColor,
+    castlingRights: current.castlingRights,
+    enPassantTarget: current.enPassantTarget,
+    halfmoveClock: current.halfmoveClock,
+    fullmoveNumber: current.fullmoveNumber,
+  });
+  if (!transitPosition.ok || isKingAttacked(transitPosition.position, color)) return null;
+
+  const nextPieces = current.pieces
+    .filter((entry) => !sameSquare(entry.square, from) && !sameSquare(entry.square, rookFrom))
+    .map((entry) => ({ square: entry.square, piece: entry.piece }));
+  nextPieces.push({ square: to, piece: king }, { square: rookTo, piece: rook });
+  const nextPosition = createPosition({
+    pieces: nextPieces,
+    activeColor: opposite(color),
+    castlingRights: updatedCastlingRights(current.castlingRights, king, from, null, to),
+    enPassantTarget: null,
+    halfmoveClock: current.halfmoveClock + 1,
+    fullmoveNumber: current.fullmoveNumber + (color === "black" ? 1 : 0),
+  });
+  if (!nextPosition.ok) return { kind: "rejected", reason: "invalid-position" };
+
+  return {
+    kind: "accepted",
+    position: nextPosition.position,
+    move: freezeMoveRecord(from, to, king, null),
+  };
+}
+
+/** Applies a supported move only when the result leaves the mover's king safe. */
 export function applyLegalMove(position: Position, intent: MoveIntent): MoveResult {
   const pseudoLegalResult = applyPseudoLegalMove(position, intent);
   const result = pseudoLegalResult.kind === "accepted"
     ? pseudoLegalResult
     : pseudoLegalResult.reason === "illegal-move"
-      ? applyEnPassantMove(position, intent) ?? pseudoLegalResult
+      ? applyEnPassantMove(position, intent) ?? applyCastleMove(position, intent) ?? pseudoLegalResult
       : pseudoLegalResult;
   if (result.kind !== "accepted") return result;
   if (isKingAttacked(result.position, result.move.piece.color)) {

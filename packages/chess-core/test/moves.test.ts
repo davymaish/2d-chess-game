@@ -239,6 +239,84 @@ describe("pseudo-legal move application", () => {
     expectRejected(move(enPassant, "e5", "d6"), "illegal-move");
   });
 
+  it("castles on either side and moves the rook while clearing both rights", () => {
+    const position = board(
+      [placement("a1", "white", "rook"), placement("h1", "white", "rook")],
+      { whiteKing: "e1", blackKing: "h8", castlingRights: ["white-king-side", "white-queen-side"] },
+    );
+    const kingSide = expectAccepted(legalMove(position, "e1", "g1"));
+    expect(pieceAt(kingSide.position, square("g1"))).toEqual({ color: "white", kind: "king" });
+    expect(pieceAt(kingSide.position, square("f1"))).toEqual({ color: "white", kind: "rook" });
+    expect(pieceAt(kingSide.position, square("h1"))).toBeNull();
+    expect(kingSide.position.castlingRights).toEqual([]);
+    expect(kingSide.position.activeColor).toBe("black");
+    expect(kingSide.position.halfmoveClock).toBe(1);
+
+    const queenSide = expectAccepted(legalMove(position, "e1", "c1"));
+    expect(pieceAt(queenSide.position, square("c1"))).toEqual({ color: "white", kind: "king" });
+    expect(pieceAt(queenSide.position, square("d1"))).toEqual({ color: "white", kind: "rook" });
+    expect(pieceAt(queenSide.position, square("a1"))).toBeNull();
+    expect(queenSide.position.castlingRights).toEqual([]);
+  });
+
+  it("supports black castling and increments the fullmove number", () => {
+    const position = board([placement("h8", "black", "rook")], {
+      activeColor: "black",
+      whiteKing: "a1",
+      blackKing: "e8",
+      castlingRights: ["black-king-side"],
+      fullmoveNumber: 6,
+    });
+    const castled = expectAccepted(legalMove(position, "e8", "g8"));
+    expect(pieceAt(castled.position, square("g8"))).toEqual({ color: "black", kind: "king" });
+    expect(pieceAt(castled.position, square("f8"))).toEqual({ color: "black", kind: "rook" });
+    expect(castled.position.fullmoveNumber).toBe(7);
+    expect(castled.position.castlingRights).toEqual([]);
+  });
+
+  it("rejects castling through occupied squares or without its right and rook", () => {
+    const blocked = board(
+      [placement("a1", "white", "rook"), placement("h1", "white", "rook"), placement("b1", "white", "knight")],
+      { whiteKing: "e1", castlingRights: ["white-king-side", "white-queen-side"] },
+    );
+    expectRejected(legalMove(blocked, "e1", "c1"), "illegal-move");
+    expectAccepted(legalMove(blocked, "e1", "g1"));
+
+    const noRook = board([], {
+      whiteKing: "e1",
+      castlingRights: ["white-king-side"],
+    });
+    expectRejected(legalMove(noRook, "e1", "g1"), "illegal-move");
+
+    const noRight = board([placement("h1", "white", "rook")], { whiteKing: "e1" });
+    expectRejected(legalMove(noRight, "e1", "g1"), "illegal-move");
+  });
+
+  it("rejects castling out of check or through an attacked transit square", () => {
+    const inCheck = board(
+      [placement("h1", "white", "rook"), placement("e8", "black", "rook")],
+      { whiteKing: "e1", blackKing: "a8", castlingRights: ["white-king-side"] },
+    );
+    expectRejected(legalMove(inCheck, "e1", "g1"), "illegal-move");
+
+    const attackedTransit = board(
+      [
+        placement("a1", "white", "rook"),
+        placement("h1", "white", "rook"),
+        placement("f8", "black", "rook"),
+      ],
+      { whiteKing: "e1", blackKing: "a8", castlingRights: ["white-king-side", "white-queen-side"] },
+    );
+    expectRejected(legalMove(attackedTransit, "e1", "g1"), "illegal-move");
+    expectAccepted(legalMove(attackedTransit, "e1", "c1"));
+
+    const attackedDestination = board(
+      [placement("h1", "white", "rook"), placement("g8", "black", "rook")],
+      { whiteKing: "e1", blackKing: "a8", castlingRights: ["white-king-side"] },
+    );
+    expectRejected(legalMove(attackedDestination, "e1", "g1"), "illegal-move");
+  });
+
   it("applies en-passant captures for either side and updates turn metadata", () => {
     const whiteCapture = board(
       [placement("e5", "white", "pawn"), placement("d5", "black", "pawn")],
