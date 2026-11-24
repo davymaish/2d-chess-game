@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  applyLegalMove,
   applyPseudoLegalMove,
   createPosition,
   parseSquare,
@@ -58,6 +59,10 @@ function move(
     ? { from: square(from), to: square(to), promotion }
     : { from: square(from), to: square(to) };
   return applyPseudoLegalMove(position, intent);
+}
+
+function legalMove(position: Position, from: string, to: string): MoveResult {
+  return applyLegalMove(position, { from: square(from), to: square(to) });
 }
 
 function expectAccepted(result: MoveResult): Extract<MoveResult, { kind: "accepted" }> {
@@ -234,12 +239,51 @@ describe("pseudo-legal move application", () => {
     expectRejected(move(enPassant, "e5", "d6"), "illegal-move");
   });
 
-  it("does not claim to test whether a move leaves the mover's king in check", () => {
+  it("keeps pseudo-legal movement separate from king-safety filtering", () => {
     const position = board([placement("e8", "black", "rook")], {
-      whiteKing: "d1",
+      whiteKing: "e1",
       blackKing: "h8",
     });
-    const result = expectAccepted(move(position, "d1", "e1"));
-    expect(pieceAt(result.position, square("e1"))).toEqual({ color: "white", kind: "king" });
+    expectAccepted(move(position, "e1", "e2"));
+    expectRejected(legalMove(position, "e1", "e2"), "illegal-move");
+  });
+
+  it("rejects a pinned piece move that exposes its king", () => {
+    const position = board(
+      [placement("e2", "white", "rook"), placement("e8", "black", "rook")],
+      { whiteKing: "e1", blackKing: "a8" },
+    );
+    expectAccepted(move(position, "e2", "f2"));
+    expectRejected(legalMove(position, "e2", "f2"), "illegal-move");
+  });
+
+  it("rejects a king move onto squares attacked by pawns or the opposing king", () => {
+    const position = board([placement("d6", "black", "pawn")], {
+      whiteKing: "e4",
+      blackKing: "h8",
+    });
+    expectAccepted(move(position, "e4", "e5"));
+    expectRejected(legalMove(position, "e4", "e5"), "illegal-move");
+
+    const opposingKing = board([], { whiteKing: "e4", blackKing: "e6" });
+    expectAccepted(move(opposingKing, "e4", "e5"));
+    expectRejected(legalMove(opposingKing, "e4", "e5"), "illegal-move");
+  });
+
+  it("allows a king to escape check and a king to capture an undefended checking piece", () => {
+    const escape = board([placement("e8", "black", "rook")], {
+      whiteKing: "e1",
+      blackKing: "h8",
+    });
+    const escaped = expectAccepted(legalMove(escape, "e1", "d1"));
+    expect(pieceAt(escaped.position, square("d1"))).toEqual({ color: "white", kind: "king" });
+
+    const capture = board([placement("e2", "black", "rook")], {
+      whiteKing: "e1",
+      blackKing: "h8",
+    });
+    const captured = expectAccepted(legalMove(capture, "e1", "e2"));
+    expect(pieceAt(captured.position, square("e2"))).toEqual({ color: "white", kind: "king" });
+    expect(captured.move.capturedPiece).toEqual({ color: "black", kind: "rook" });
   });
 });

@@ -149,6 +149,16 @@ function freezeMoveRecord(
   });
 }
 
+function isKingAttacked(position: Position, color: Color): boolean {
+  const king = position.pieces.find((entry) => entry.piece.color === color && entry.piece.kind === "king");
+  if (!king) return false;
+
+  return position.pieces.some((entry) =>
+    entry.piece.color !== color &&
+    isPseudoLegalGeometry(position, entry.piece, entry.square, king.square, king.piece)
+  );
+}
+
 /** Applies a pseudo-legal move; king safety, castling, and en-passant capture are not evaluated here. */
 export function applyPseudoLegalMove(position: Position, intent: MoveIntent): MoveResult {
   const validatedPosition = createPosition(position);
@@ -216,4 +226,14 @@ export function applyPseudoLegalMove(position: Position, intent: MoveIntent): Mo
     position: nextPosition.position,
     move: freezeMoveRecord(from, to, movingPiece, capturedPiece, promotion),
   };
+}
+
+/** Applies a currently supported move only when the result leaves the mover's king safe; castling and en passant remain unsupported. */
+export function applyLegalMove(position: Position, intent: MoveIntent): MoveResult {
+  const result = applyPseudoLegalMove(position, intent);
+  if (result.kind !== "accepted") return result;
+  if (isKingAttacked(result.position, result.move.piece.color)) {
+    return { kind: "rejected", reason: "illegal-move" };
+  }
+  return result;
 }
