@@ -22,6 +22,15 @@ h1 { margin: 0; font: 500 clamp(54px, 7vw, 88px)/.96 'Manrope', sans-serif; lett
 .turn-indicator { width: 18px; height: 18px; border-radius: 50%; flex: 0 0 auto; }
 .turn-indicator.white { background: #f1f0e8; box-shadow: inset 0 0 0 1px #bcc4b8; }
 .turn-indicator.black { background: #29333a; box-shadow: inset 0 0 0 2px #aab5ac; }
+.clock-panel { max-width: 350px; margin-top: 18px; padding: 14px; background: #1b282e; border: 1px solid #ffffff18; }
+.clock-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.clock-heading h2 { margin: 0; font: 600 14px 'Manrope', sans-serif; }.clock-heading label { color: #9fafa8; font: 10px 'DM Mono', monospace; }
+.clock-panel select { width: 100%; margin-top: 10px; padding: 8px; color: #e5ebe5; background: #25343a; border: 1px solid #ffffff24; }
+.clock-readouts { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
+.clock-readouts div { display: flex; justify-content: space-between; align-items: center; padding: 8px; color: #aab7af; background: #111a20; border: 1px solid #ffffff12; font: 10px 'DM Mono', monospace; }
+.clock-readouts .clock-active { color: #101820; background: #c4d893; border-color: #c4d893; }
+.clock-readouts strong { font-size: 14px; }.clock-toggle { margin-top: 10px; padding: 8px 13px; color: #c4d893; background: transparent; border: 1px solid #c4d89380; cursor: pointer; }
+.clock-toggle:disabled { opacity: .45; cursor: not-allowed; }.clock-result { margin: 10px 0 0; color: #f0d68a; font-size: 12px; }
 .reset-button { margin-top: 20px; padding: 11px 17px; color: #16201d; font-weight: 700; background: #c4d893; border: 0; cursor: pointer; }
 .reset-button:hover { background: #d5e6a4; }
 .session-actions, .replay-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 18px; }

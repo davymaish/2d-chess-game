@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
 import {
   formatSquare,
@@ -6,6 +6,18 @@ import {
 } from "@2d-chess/chess-core";
 import type { MoveIntent, MoveRecord, PromotionPieceKind, Square } from "@2d-chess/chess-core";
 import { legalIntentsFrom } from "./game.js";
+import {
+  CHESS_CLOCK_PRESETS,
+  alignClockSide,
+  createChessClock,
+  formatClockTime,
+  getTimeoutOutcome,
+  pauseClock,
+  startClock,
+  switchClockSide,
+  tickClock,
+} from "./clock.js";
+import type { ClockPresetId } from "./clock.js";
 import {
   closeReplay,
   createGameSession,
@@ -54,6 +66,8 @@ function App() {
   const [session, setSession] = useState(() => createGameSession());
   const [pendingPromotion, setPendingPromotion] = useState<PendingPromotion | null>(null);
   const [selectedSquare, setSelectedSquare] = useState<Square | null>(null);
+  const [clockPreset, setClockPreset] = useState<ClockPresetId>("blitz-5-0");
+  const [clock, setClock] = useState(() => createChessClock("blitz-5-0"));
   const position = getSessionPosition(session);
   const status = useMemo(() => getSessionStatus(session), [session]);
   const replay = getReplayState(session);
@@ -61,13 +75,31 @@ function App() {
   const selected = replay ? null : selectedSquare;
   const legalIntents = selected ? legalIntentsFrom(position, selected) : [];
   const legalTargets = new Set(legalIntents.map((intent) => formatSquare(intent.to)));
-  const gameOver = status.kind === "checkmate" || status.kind === "stalemate" || status.kind === "draw" || status.kind === "invalid-position";
+  const timeout = clock.flaggedColor ? getTimeoutOutcome(position, clock.flaggedColor) : null;
+  const gameOver = status.kind === "checkmate" || status.kind === "stalemate" || status.kind === "draw" || status.kind === "invalid-position" || timeout !== null;
   const replaying = replay !== null;
 
+  useEffect(() => {
+    if (!clock.running) return;
+    const timer = window.setInterval(() => setClock((current) => tickClock(current, Date.now())), 250);
+    return () => window.clearInterval(timer);
+  }, [clock.running]);
+
+  useEffect(() => {
+    if (gameOver && clock.running) setClock((current) => pauseClock(current, Date.now()));
+  }, [gameOver, clock.running]);
+
   function finishMove(intent: MoveIntent) {
+    const now = Date.now();
+    const checkedClock = tickClock(clock, now);
+    if (checkedClock.flaggedColor !== null) {
+      setClock(checkedClock);
+      return;
+    }
     const result = playSessionMove(session, intent);
     if (result.kind !== "accepted") return;
     setSession(result.session);
+    setClock((current) => switchClockSide(tickClock(current, now), result.session.snapshots[result.session.cursor]!.position.activeColor, now));
     setPendingPromotion(null);
   }
 
@@ -94,6 +126,7 @@ function App() {
     setSession(createGameSession());
     setSelectedSquare(null);
     setPendingPromotion(null);
+    setClock(createChessClock(clockPreset));
   }
 
   function moveReplay(target: ReturnType<typeof stepReplay>) {
@@ -102,6 +135,10 @@ function App() {
 
   const turnLabel = position.activeColor === "white" ? "White to move" : "Black to move";
   const resultDetail = status.kind === "checkmate" ? label(status.winner) : status.kind === "draw" ? status.reason.replaceAll("-", " ") : undefined;
+  const outcomeLabel = timeout
+    ? timeout.kind === "win" ? `Flag fall — ${label(timeout.winner)} wins` : "Flag fall — draw, no mating material"
+    : replay ? (replay.index < 0 ? "Replay · before first move" : `Replay · move ${replay.index + 1} of ${replay.totalMoves}`)
+      : gameOver ? statusText(status.kind, resultDetail) : turnLabel;
 
   return (
     <main className="app-shell">
@@ -117,14 +154,44 @@ function App() {
           <p className="lede">A local two-player game, powered by the V2 rules engine. Choose a piece, then a highlighted square.</p>
           <div className="turn-card" aria-live="polite" aria-atomic="true">
             <span className={`turn-indicator ${position.activeColor}`} aria-hidden="true" />
-            <div><strong>{replay ? (replay.index < 0 ? "Replay · before first move" : `Replay · move ${replay.index + 1} of ${replay.totalMoves}`) : gameOver ? statusText(status.kind, resultDetail) : turnLabel}</strong><span>{status.kind === "check" ? "The king is under attack." : status.kind === "active" ? "Both sides are ready." : "Game status"}</span></div>
+            <div><strong>{outcomeLabel}</strong><span>{timeout ? timeout.kind === "win" ? `${label(timeout.winner)} has mating material.` : "The opponent cannot checkmate." : status.kind === "check" ? "The king is under attack." : status.kind === "active" ? "Both sides are ready." : "Game status"}</span></div>
           </div>
+          <section className="clock-panel" aria-label="Chess clock">
+            <div className="clock-heading"><h2>Chess clock</h2><label htmlFor="clock-preset">Time control</label></div>
+            <select id="clock-preset" value={clockPreset} disabled={session.cursor > 0 || clock.started || replaying}
+              onChange={(event) => {
+                const preset = event.target.value as ClockPresetId;
+                setClockPreset(preset);
+                setClock(createChessClock(preset, position.activeColor));
+              }}>
+              {Object.entries(CHESS_CLOCK_PRESETS).map(([id, preset]) => <option key={id} value={id}>{preset.label}</option>)}
+            </select>
+            <div className="clock-readouts" aria-live="off">
+              <div className={clock.activeColor === "white" ? "clock-active" : ""}><span>White</span><strong aria-label={`White ${formatClockTime(clock.whiteMilliseconds)} remaining`}>{formatClockTime(clock.whiteMilliseconds)}</strong></div>
+              <div className={clock.activeColor === "black" ? "clock-active" : ""}><span>Black</span><strong aria-label={`Black ${formatClockTime(clock.blackMilliseconds)} remaining`}>{formatClockTime(clock.blackMilliseconds)}</strong></div>
+            </div>
+            <button className="clock-toggle" type="button" disabled={replaying || clock.flaggedColor !== null || (gameOver && !timeout)}
+              onClick={() => setClock((current) => current.running ? pauseClock(current, Date.now()) : startClock(current, Date.now()))}>
+              {clock.running ? "Pause clock" : clock.started ? "Resume clock" : "Start clock"}
+            </button>
+            {timeout && <p className="clock-result" role="status">{outcomeLabel}</p>}
+          </section>
           <div className="session-actions">
             <button className="reset-button" type="button" onClick={resetGame}>New game</button>
-            <button type="button" onClick={() => setSession(undoSession(session))} disabled={replaying || session.cursor === 0}>Undo</button>
-            <button type="button" onClick={() => setSession(redoSession(session))} disabled={replaying || session.cursor >= session.snapshots.length - 1}>Redo</button>
+            <button type="button" onClick={() => {
+              const next = undoSession(session);
+              setSession(next);
+              setClock(alignClockSide(pauseClock(clock, Date.now()), getSessionPosition(next).activeColor));
+              setSelectedSquare(null);
+            }} disabled={replaying || session.cursor === 0}>Undo</button>
+            <button type="button" onClick={() => {
+              const next = redoSession(session);
+              setSession(next);
+              setClock(alignClockSide(pauseClock(clock, Date.now()), getSessionPosition(next).activeColor));
+              setSelectedSquare(null);
+            }} disabled={replaying || session.cursor >= session.snapshots.length - 1}>Redo</button>
           </div>
-          {!replaying ? <button className="replay-toggle" type="button" onClick={() => setSession(openReplay(session))} disabled={history.length === 0}>Review moves</button> : <div className="replay-controls" aria-label="Replay controls">
+          {!replaying ? <button className="replay-toggle" type="button" onClick={() => { setClock(pauseClock(clock, Date.now())); setSession(openReplay(session)); }} disabled={history.length === 0}>Review moves</button> : <div className="replay-controls" aria-label="Replay controls">
             <button type="button" aria-label="Replay from start" onClick={() => moveReplay(firstReplayPosition(session))} disabled={replay.atStart}>|◀</button>
             <button type="button" aria-label="Previous replay move" onClick={() => moveReplay(stepReplay(session, "previous"))} disabled={replay.atStart}>◀</button>
             <span aria-live="polite">{replay.index < 0 ? "Start" : `${replay.index + 1} / ${replay.totalMoves}`}</span>
@@ -137,7 +204,7 @@ function App() {
             {history.map((move, index) => <li key={`${formatSquare(move.from)}-${formatSquare(move.to)}-${index}`}>
               <button type="button" aria-current={replay?.index === index ? "step" : undefined}
                 onClick={() => {
-                  if (!replaying) setSession(openReplay(session));
+                  if (!replaying) { setClock(pauseClock(clock, Date.now())); setSession(openReplay(session)); }
                   const base = replaying ? session : openReplay(session);
                   const destination = seekReplay(base, index);
                   if (destination) setSession(destination);
