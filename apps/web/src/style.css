@@ -45,6 +45,12 @@ h1 { margin: 0; font: 500 clamp(54px, 7vw, 88px)/.96 'Manrope', sans-serif; lett
 .move-history button[aria-current="step"] { color: #101820; background: #c4d893; }
 .session-actions button:focus-visible, .replay-controls button:focus-visible, .replay-toggle:focus-visible, .move-history button:focus-visible { outline: 2px solid #e9c46a; outline-offset: 2px; }
 .keyboard-hint { color: #81918a; font-size: 10px; line-height: 1.6; margin-top: 22px; }
+.fen-panel { max-width: 420px; margin-top: 18px; padding: 13px; background: #1b282e; border: 1px solid #ffffff18; }
+.fen-panel h2 { margin: 0 0 9px; font: 600 13px 'Manrope', sans-serif; }.fen-panel label { color: #9fafa8; font: 10px 'DM Mono', monospace; }
+.fen-panel textarea { display: block; width: 100%; margin-top: 7px; padding: 9px; resize: vertical; color: #e5ebe5; background: #111a20; border: 1px solid #ffffff24; font: 11px/1.5 'DM Mono', monospace; }
+.fen-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }.fen-actions button { min-height: 36px; padding: 7px 10px; color: #e5ebe5; background: #25343a; border: 1px solid #ffffff24; cursor: pointer; }
+.fen-actions button:disabled { opacity: .45; cursor: not-allowed; }.fen-actions button:focus-visible, .fen-panel textarea:focus-visible { outline: 2px solid #e9c46a; outline-offset: 2px; }
+.fen-message { min-height: 1em; margin: 8px 0 0; color: #a8b4af; font-size: 11px; line-height: 1.5; }
 .board-column { width: 100%; max-width: 560px; justify-self: end; }
 .board-frame { padding: clamp(7px, 1.5vw, 13px); background: #1b282e; border: 1px solid #ffffff17; box-shadow: 0 28px 80px #0005; }
 .board { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); aspect-ratio: 1; overflow: hidden; }
