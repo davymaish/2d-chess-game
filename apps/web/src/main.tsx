@@ -2,7 +2,9 @@ import React, { useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
 import {
   formatSquare,
+  parseFEN,
   pieceAt,
+  serializeFEN,
 } from "@2d-chess/chess-core";
 import type { MoveIntent, MoveRecord, PromotionPieceKind, Square } from "@2d-chess/chess-core";
 import { legalIntentsFrom } from "./game.js";
@@ -71,6 +73,8 @@ function App() {
   const [clockPreset, setClockPreset] = useState<ClockPresetId>("blitz-5-0");
   const [clock, setClock] = useState(() => createChessClock("blitz-5-0"));
   const [orientation, setOrientation] = useState<BoardOrientation>("white");
+  const [fenText, setFenText] = useState("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
+  const [fenMessage, setFenMessage] = useState("");
   const position = getSessionPosition(session);
   const status = useMemo(() => getSessionStatus(session), [session]);
   const replay = getReplayState(session);
@@ -131,6 +135,21 @@ function App() {
     setSelectedSquare(null);
     setPendingPromotion(null);
     setClock(createChessClock(clockPreset));
+    setFenText("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
+    setFenMessage("");
+  }
+
+  function loadFen() {
+    try {
+      const imported = parseFEN(fenText);
+      setSession(createGameSession(imported));
+      setClock(createChessClock(clockPreset, imported.activeColor));
+      setSelectedSquare(null);
+      setPendingPromotion(null);
+      setFenMessage("Position loaded. Move history starts from this position.");
+    } catch (error) {
+      setFenMessage(error instanceof Error ? error.message : "Could not load this FEN position.");
+    }
   }
 
   function moveReplay(target: ReturnType<typeof stepReplay>) {
@@ -206,6 +225,16 @@ function App() {
             <button type="button" onClick={() => { setSession(closeReplay(session)); setSelectedSquare(null); }}>Exit review</button>
           </div>}
           <p className="keyboard-hint">Keyboard and touch: focus a square and press Enter or Space.</p>
+          <section className="fen-panel" aria-labelledby="fen-title">
+            <h2 id="fen-title">Position notation</h2>
+            <label htmlFor="fen-input">FEN (six fields)</label>
+            <textarea id="fen-input" rows={3} spellCheck={false} value={fenText} onChange={(event) => setFenText(event.target.value)} />
+            <div className="fen-actions">
+              <button type="button" onClick={() => { setFenText(serializeFEN(position)); setFenMessage("Current position exported to the field."); }}>Show current FEN</button>
+              <button type="button" disabled={replaying} onClick={loadFen}>Load position</button>
+            </div>
+            <p className="fen-message" role="status" aria-live="polite">{fenMessage}</p>
+          </section>
           {history.length > 0 && <ol className="move-history" aria-label="Move history">
             {history.map((move, index) => <li key={`${formatSquare(move.from)}-${formatSquare(move.to)}-${index}`}>
               <button type="button" aria-current={replay?.index === index ? "step" : undefined}
