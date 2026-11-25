@@ -24,6 +24,16 @@ h1 { margin: 0; font: 500 clamp(54px, 7vw, 88px)/.96 'Manrope', sans-serif; lett
 .turn-indicator.black { background: #29333a; box-shadow: inset 0 0 0 2px #aab5ac; }
 .reset-button { margin-top: 20px; padding: 11px 17px; color: #16201d; font-weight: 700; background: #c4d893; border: 0; cursor: pointer; }
 .reset-button:hover { background: #d5e6a4; }
+.session-actions, .replay-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 18px; }
+.session-actions button, .replay-controls button, .replay-toggle { min-height: 38px; padding: 8px 12px; color: #e5ebe5; background: #25343a; border: 1px solid #ffffff24; cursor: pointer; }
+.session-actions button:disabled, .replay-controls button:disabled, .replay-toggle:disabled { opacity: .45; cursor: not-allowed; }
+.session-actions .reset-button { margin: 0; color: #16201d; background: #c4d893; border: 0; }
+.replay-toggle { margin-top: 12px; color: #c4d893; }
+.replay-controls span { min-width: 54px; text-align: center; color: #c4d893; font: 11px 'DM Mono', monospace; }
+.move-history { display: flex; flex-wrap: wrap; gap: 6px; max-height: 146px; overflow: auto; margin: 14px 0 0; padding: 0 3px 3px 0; list-style: none; }
+.move-history button { padding: 6px 8px; color: #bdc9c2; background: #1b282e; border: 1px solid #ffffff18; font: 11px 'DM Mono', monospace; cursor: pointer; }
+.move-history button[aria-current="step"] { color: #101820; background: #c4d893; }
+.session-actions button:focus-visible, .replay-controls button:focus-visible, .replay-toggle:focus-visible, .move-history button:focus-visible { outline: 2px solid #e9c46a; outline-offset: 2px; }
 .keyboard-hint { color: #81918a; font-size: 10px; line-height: 1.6; margin-top: 22px; }
 .board-column { width: 100%; max-width: 560px; justify-self: end; }
 .board-frame { padding: clamp(7px, 1.5vw, 13px); background: #1b282e; border: 1px solid #ffffff17; box-shadow: 0 28px 80px #0005; }
