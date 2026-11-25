@@ -6,6 +6,8 @@ import {
 } from "@2d-chess/chess-core";
 import type { MoveIntent, MoveRecord, PromotionPieceKind, Square } from "@2d-chess/chess-core";
 import { legalIntentsFrom } from "./game.js";
+import { orientedBoardSquares } from "./orientation.js";
+import type { BoardOrientation } from "./orientation.js";
 import {
   CHESS_CLOCK_PRESETS,
   alignClockSide,
@@ -68,10 +70,12 @@ function App() {
   const [selectedSquare, setSelectedSquare] = useState<Square | null>(null);
   const [clockPreset, setClockPreset] = useState<ClockPresetId>("blitz-5-0");
   const [clock, setClock] = useState(() => createChessClock("blitz-5-0"));
+  const [orientation, setOrientation] = useState<BoardOrientation>("white");
   const position = getSessionPosition(session);
   const status = useMemo(() => getSessionStatus(session), [session]);
   const replay = getReplayState(session);
   const history = getMoveHistory(session);
+  const boardSquares = orientedBoardSquares(orientation);
   const selected = replay ? null : selectedSquare;
   const legalIntents = selected ? legalIntentsFrom(position, selected) : [];
   const legalTargets = new Set(legalIntents.map((intent) => formatSquare(intent.to)));
@@ -178,6 +182,8 @@ function App() {
           </section>
           <div className="session-actions">
             <button className="reset-button" type="button" onClick={resetGame}>New game</button>
+            <button type="button" className="orientation-toggle" aria-pressed={orientation === "black"}
+              onClick={() => setOrientation((current) => current === "white" ? "black" : "white")}>Flip board</button>
             <button type="button" onClick={() => {
               const next = undoSession(session);
               setSession(next);
@@ -215,12 +221,13 @@ function App() {
 
         <div className="board-column">
           <div className="board-frame">
-            <div className="board" role="group" aria-label="Chessboard">
-              {Array.from({ length: 8 }, (_, row) => Array.from({ length: 8 }, (_, col) => {
-                const square = { file: "abcdefgh"[col]! as Square["file"], rank: (8 - row) as Square["rank"] };
+            <div className="board" role="group" aria-label={`Chessboard, ${orientation} at bottom`}>
+              {boardSquares.map((square, index) => {
+                const row = Math.floor(index / 8);
+                const col = index % 8;
                 const name = formatSquare(square);
                 const piece = pieceAt(position, square);
-                const isLight = (col + square.rank) % 2 === 0;
+                const isLight = ("abcdefgh".indexOf(square.file) + square.rank) % 2 === 0;
                 const isSelected = selectedSquare !== null && formatSquare(selectedSquare) === name;
                 const isTarget = legalTargets.has(name);
                 const contents = piece ? GLYPHS[`${piece.color}-${piece.kind}`] : "";
@@ -238,10 +245,10 @@ function App() {
                   {row === 7 && <span className="file-coordinate" aria-hidden="true">{square.file}</span>}
                   {contents && <span className={`piece ${piece!.color}`} aria-hidden="true">{contents}</span>}
                 </button>;
-              }))}
+              })}
             </div>
           </div>
-          <div className="board-caption"><span>White at bottom</span><span>{position.fullmoveNumber === 1 && position.activeColor === "white" ? "Ready to begin" : `Move ${position.fullmoveNumber}`}</span></div>
+          <div className="board-caption"><span>{orientation === "white" ? "White at bottom" : "Black at bottom"}</span><span>{position.fullmoveNumber === 1 && position.activeColor === "white" ? "Ready to begin" : `Move ${position.fullmoveNumber}`}</span></div>
         </div>
       </section>
 

@@ -36,6 +36,7 @@ h1 { margin: 0; font: 500 clamp(54px, 7vw, 88px)/.96 'Manrope', sans-serif; lett
 .session-actions, .replay-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 18px; }
 .session-actions button, .replay-controls button, .replay-toggle { min-height: 38px; padding: 8px 12px; color: #e5ebe5; background: #25343a; border: 1px solid #ffffff24; cursor: pointer; }
 .session-actions button:disabled, .replay-controls button:disabled, .replay-toggle:disabled { opacity: .45; cursor: not-allowed; }
+.session-actions button[aria-pressed="true"] { color: #101820; background: #c4d893; border-color: #c4d893; }
 .session-actions .reset-button { margin: 0; color: #16201d; background: #c4d893; border: 0; }
 .replay-toggle { margin-top: 12px; color: #c4d893; }
 .replay-controls span { min-width: 54px; text-align: center; color: #c4d893; font: 11px 'DM Mono', monospace; }
