@@ -3,11 +3,13 @@ import { createRoot } from "react-dom/client";
 import {
   formatSquare,
   parseFEN,
+  parsePGN,
   pieceAt,
   serializeFEN,
 } from "@2d-chess/chess-core";
-import type { MoveIntent, MoveRecord, PromotionPieceKind, Square } from "@2d-chess/chess-core";
+import type { MoveIntent, MoveRecord, PGNResult, ParsedPGN, PromotionPieceKind, Square } from "@2d-chess/chess-core";
 import { legalIntentsFrom } from "./game.js";
+import { serializeSessionPGN } from "./pgn-session.js";
 import { orientedBoardSquares } from "./orientation.js";
 import type { BoardOrientation } from "./orientation.js";
 import {
@@ -75,6 +77,9 @@ function App() {
   const [orientation, setOrientation] = useState<BoardOrientation>("white");
   const [fenText, setFenText] = useState("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
   const [fenMessage, setFenMessage] = useState("");
+  const [pgnText, setPgnText] = useState("");
+  const [pgnMessage, setPgnMessage] = useState("");
+  const [pgnPreview, setPgnPreview] = useState<ParsedPGN | null>(null);
   const position = getSessionPosition(session);
   const status = useMemo(() => getSessionStatus(session), [session]);
   const replay = getReplayState(session);
@@ -149,6 +154,26 @@ function App() {
       setFenMessage("Position loaded. Move history starts from this position.");
     } catch (error) {
       setFenMessage(error instanceof Error ? error.message : "Could not load this FEN position.");
+    }
+  }
+
+  function exportPgn() {
+    let result: PGNResult = "*";
+    if (timeout) result = timeout.kind === "draw" ? "1/2-1/2" : timeout.winner === "white" ? "1-0" : "0-1";
+    else if (status.kind === "checkmate") result = status.winner === "white" ? "1-0" : "0-1";
+    else if (status.kind === "draw" || status.kind === "stalemate") result = "1/2-1/2";
+    setPgnText(serializeSessionPGN(session, result));
+    setPgnPreview(null);
+    setPgnMessage("Current session exported as PGN.");
+  }
+
+  function previewPgn() {
+    try {
+      setPgnPreview(parsePGN(pgnText));
+      setPgnMessage("PGN imported for preview; the active board was not changed.");
+    } catch (error) {
+      setPgnPreview(null);
+      setPgnMessage(error instanceof Error ? `PGN import failed: ${error.message}` : "PGN import failed.");
     }
   }
 
@@ -234,6 +259,21 @@ function App() {
               <button type="button" disabled={replaying} onClick={loadFen}>Load position</button>
             </div>
             <p className="fen-message" role="status" aria-live="polite">{fenMessage}</p>
+          </section>
+          <section className="pgn-panel" aria-labelledby="pgn-title">
+            <h2 id="pgn-title">Portable game notation</h2>
+            <label htmlFor="pgn-input">PGN</label>
+            <textarea id="pgn-input" rows={4} spellCheck={false} value={pgnText} onChange={(event) => setPgnText(event.target.value)} />
+            <div className="pgn-actions">
+              <button type="button" onClick={exportPgn}>Export PGN</button>
+              <button type="button" onClick={previewPgn}>Preview import</button>
+            </div>
+            <p className="pgn-message" role="status" aria-live="polite">{pgnMessage}</p>
+            {pgnPreview && <div className="pgn-preview" aria-label="Imported PGN preview">
+              <strong>{pgnPreview.headers.Event ?? "Imported game"}</strong>
+              <ol>{pgnPreview.moves.map((move, index) => <li key={`${move}-${index}`}>{move}</li>)}</ol>
+              <span>Result: {pgnPreview.result}</span>
+            </div>}
           </section>
           {history.length > 0 && <ol className="move-history" aria-label="Move history">
             {history.map((move, index) => <li key={`${formatSquare(move.from)}-${formatSquare(move.to)}-${index}`}>

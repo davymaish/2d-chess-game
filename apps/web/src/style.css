@@ -51,6 +51,12 @@ h1 { margin: 0; font: 500 clamp(54px, 7vw, 88px)/.96 'Manrope', sans-serif; lett
 .fen-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }.fen-actions button { min-height: 36px; padding: 7px 10px; color: #e5ebe5; background: #25343a; border: 1px solid #ffffff24; cursor: pointer; }
 .fen-actions button:disabled { opacity: .45; cursor: not-allowed; }.fen-actions button:focus-visible, .fen-panel textarea:focus-visible { outline: 2px solid #e9c46a; outline-offset: 2px; }
 .fen-message { min-height: 1em; margin: 8px 0 0; color: #a8b4af; font-size: 11px; line-height: 1.5; }
+.pgn-panel { max-width: 420px; margin-top: 12px; padding: 13px; background: #1b282e; border: 1px solid #ffffff18; }
+.pgn-panel h2 { margin: 0 0 9px; font: 600 13px 'Manrope', sans-serif; }.pgn-panel label { color: #9fafa8; font: 10px 'DM Mono', monospace; }
+.pgn-panel textarea { display: block; width: 100%; margin-top: 7px; padding: 9px; resize: vertical; color: #e5ebe5; background: #111a20; border: 1px solid #ffffff24; font: 11px/1.5 'DM Mono', monospace; }
+.pgn-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }.pgn-actions button { min-height: 36px; padding: 7px 10px; color: #e5ebe5; background: #25343a; border: 1px solid #ffffff24; cursor: pointer; }
+.pgn-actions button:focus-visible, .pgn-panel textarea:focus-visible { outline: 2px solid #e9c46a; outline-offset: 2px; }.pgn-message { min-height: 1em; margin: 8px 0 0; color: #a8b4af; font-size: 11px; line-height: 1.5; }
+.pgn-preview { margin-top: 10px; padding: 10px; color: #bdc9c2; background: #111a20; font-size: 11px; }.pgn-preview ol { max-height: 110px; overflow: auto; padding-left: 24px; font: 10px/1.6 'DM Mono', monospace; }.pgn-preview > span { color: #c4d893; font: 10px 'DM Mono', monospace; }
 .board-column { width: 100%; max-width: 560px; justify-self: end; }
 .board-frame { padding: clamp(7px, 1.5vw, 13px); background: #1b282e; border: 1px solid #ffffff17; box-shadow: 0 28px 80px #0005; }
 .board { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); aspect-ratio: 1; overflow: hidden; }
