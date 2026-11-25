@@ -206,6 +206,19 @@ describe("pseudo-legal move application", () => {
     ]);
   });
 
+  it("does not restore castling rights after a home rook moves away and returns", () => {
+    const position = board([placement("h1", "white", "rook")], {
+      whiteKing: "e1",
+      blackKing: "a8",
+      castlingRights: ["white-king-side"],
+    });
+    const afterRookMove = expectAccepted(legalMove(position, "h1", "h2")).position;
+    expect(afterRookMove.castlingRights).toEqual([]);
+    const afterBlackReply = expectAccepted(legalMove(afterRookMove, "a8", "a7")).position;
+    const returned = expectAccepted(legalMove(afterBlackReply, "h2", "h1")).position;
+    expect(returned.castlingRights).toEqual([]);
+  });
+
   it("requires an explicit promotion choice and applies the selected piece", () => {
     const nearPromotion = board([placement("g7", "white", "pawn")]);
     expectRejected(move(nearPromotion, "g7", "g8"), "promotion-required");
@@ -222,6 +235,39 @@ describe("pseudo-legal move application", () => {
     expectRejected(invalidPromotion, "invalid-promotion");
     const ordinaryPawnMove = board([placement("g2", "white", "pawn")]);
     expectRejected(move(ordinaryPawnMove, "g2", "g3", "queen"), "invalid-promotion");
+  });
+
+  it.each(["queen", "rook", "bishop", "knight"] as const)(
+    "supports capture-promotion to a %s",
+    (promotion) => {
+      const position = board(
+        [placement("b7", "white", "pawn"), placement("a8", "black", "rook")],
+        { whiteKing: "a1", blackKing: "h8" },
+      );
+      const result = expectAccepted(applyLegalMove(position, {
+        from: square("b7"),
+        to: square("a8"),
+        promotion,
+      }));
+      expect(pieceAt(result.position, square("a8"))).toEqual({ color: "white", kind: promotion });
+      expect(result.move.capturedPiece).toEqual({ color: "black", kind: "rook" });
+      expect(result.move.promotion).toBe(promotion);
+    },
+  );
+
+  it("supports black promotion", () => {
+    const position = board([placement("g2", "black", "pawn")], {
+      activeColor: "black",
+      whiteKing: "a1",
+      blackKing: "h8",
+    });
+    const promoted = expectAccepted(applyLegalMove(position, {
+      from: square("g2"),
+      to: square("g1"),
+      promotion: "knight",
+    }));
+    expect(pieceAt(promoted.position, square("g1"))).toEqual({ color: "black", kind: "knight" });
+    expect(promoted.move.promotion).toBe("knight");
   });
 
   it("does not apply castling or en-passant capture in the pseudo-legal move layer", () => {
@@ -344,6 +390,23 @@ describe("pseudo-legal move application", () => {
     expect(afterBlack.position.fullmoveNumber).toBe(8);
   });
 
+  it("expires an en-passant target after any intervening legal move", () => {
+    const startingPosition = board([placement("e2", "white", "pawn")], {
+      whiteKing: "a1",
+      blackKing: "h8",
+    });
+    const afterDoublePush = expectAccepted(legalMove(startingPosition, "e2", "e4")).position;
+    expect(afterDoublePush.enPassantTarget).toEqual(square("e3"));
+    const afterBlackKingMove = expectAccepted(legalMove(afterDoublePush, "h8", "g8")).position;
+    expect(afterBlackKingMove.enPassantTarget).toBeNull();
+
+    const noLongerAvailable = board(
+      [placement("e5", "white", "pawn"), placement("d5", "black", "pawn")],
+      { enPassantTarget: null },
+    );
+    expectRejected(legalMove(noLongerAvailable, "e5", "d6"), "illegal-move");
+  });
+
   it("rejects en passant when removing both pawns exposes the mover's king", () => {
     const discoveredCheck = board(
       [
@@ -371,6 +434,16 @@ describe("pseudo-legal move application", () => {
       { whiteKing: "e1", blackKing: "a8" },
     );
     expectAccepted(move(position, "e2", "f2"));
+    expectRejected(legalMove(position, "e2", "f2"), "illegal-move");
+  });
+
+  it("allows a pinned rook to move along the pin and capture its attacker", () => {
+    const position = board(
+      [placement("e2", "white", "rook"), placement("e8", "black", "rook")],
+      { whiteKing: "e1", blackKing: "a8" },
+    );
+    expectAccepted(legalMove(position, "e2", "e3"));
+    expectAccepted(legalMove(position, "e2", "e8"));
     expectRejected(legalMove(position, "e2", "f2"), "illegal-move");
   });
 
