@@ -70,4 +70,28 @@ describe("chess clock", () => {
     ]);
     expect(getTimeoutOutcome(loneKnight, "white")).toEqual({ kind: "draw", winner: null });
   });
+
+  it("matches V1 timeout outcomes for bishop colors and major/minor mating material", () => {
+    const kings = [placement("a1", "white", "king"), placement("h8", "black", "king")];
+    expect(getTimeoutOutcome(position([...kings, placement("b2", "white", "bishop"), placement("d4", "white", "bishop")]), "black"))
+      .toEqual({ kind: "draw", winner: null });
+    expect(getTimeoutOutcome(position([...kings, placement("b2", "white", "bishop"), placement("c4", "white", "bishop")]), "black"))
+      .toEqual({ kind: "win", winner: "white" });
+    expect(getTimeoutOutcome(position([...kings, placement("b2", "white", "bishop"), placement("c3", "white", "knight")]), "black"))
+      .toEqual({ kind: "win", winner: "white" });
+    expect(getTimeoutOutcome(position([...kings, placement("b2", "white", "rook")]), "black"))
+      .toEqual({ kind: "win", winner: "white" });
+    expect(getTimeoutOutcome(position([...kings, placement("b2", "white", "pawn")]), "black"))
+      .toEqual({ kind: "win", winner: "white" });
+  });
+
+  it("flags the active player when pausing at exactly zero", () => {
+    const running = startClock(createChessClock("bullet-1-0"), 0);
+    expect(pauseClock(running, 60_000)).toMatchObject({
+      whiteMilliseconds: 0,
+      running: false,
+      lastTickAt: null,
+      flaggedColor: "white",
+    });
+  });
 });
