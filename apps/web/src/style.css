@@ -41,6 +41,7 @@ h1 { margin: 0; font: 500 clamp(54px, 7vw, 88px)/.96 'Manrope', sans-serif; lett
 .session-actions .reset-button { margin: 0; color: #16201d; background: #c4d893; border: 0; }
 .replay-toggle { margin-top: 12px; color: #c4d893; }
 .replay-controls span { min-width: 54px; text-align: center; color: #c4d893; font: 11px 'DM Mono', monospace; }
+.replay-controls .replay-hint-note { flex-basis: 100%; min-width: 0; color: #9fafa8; text-align: left; font: 10px/1.5 'DM Sans', sans-serif; }
 .move-history { display: flex; flex-wrap: wrap; gap: 6px; max-height: 146px; overflow: auto; margin: 14px 0 0; padding: 0 3px 3px 0; list-style: none; }
 .move-history button { padding: 6px 8px; color: #bdc9c2; background: #1b282e; border: 1px solid #ffffff18; font: 11px 'DM Mono', monospace; cursor: pointer; }
 .move-history button[aria-current="step"] { color: #101820; background: #c4d893; }
