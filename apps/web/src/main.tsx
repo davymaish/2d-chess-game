@@ -12,7 +12,7 @@ import { FEN_REPLACEMENT_CONFIRMATION, hasFenReplacementProgress, prepareFenImpo
 import { serializeSessionPGN } from "./pgn-session.js";
 import { inspectGameSaveStorage, saveGameToStorage } from "./persistence.js";
 import type { SaveInspection } from "./persistence.js";
-import { orientedBoardSquares } from "./orientation.js";
+import { arrowKeySquare, orientedBoardSquares } from "./orientation.js";
 import type { BoardOrientation } from "./orientation.js";
 import {
   CHESS_CLOCK_PRESETS,
@@ -75,6 +75,7 @@ function App() {
   const restored = initialSave.status === "available" ? initialSave.save : null;
   const [session, setSession] = useState(() => restored?.session ?? createGameSession());
   const [pendingPromotion, setPendingPromotion] = useState<PendingPromotion | null>(null);
+  const [keyboardFocusSquare, setKeyboardFocusSquare] = useState<Square>(() => orientedBoardSquares("white")[0]!);
   const [selectedSquare, setSelectedSquare] = useState<Square | null>(null);
   const [clockPreset, setClockPreset] = useState<ClockPresetId>(() => restored?.clockPreset ?? "blitz-5-0");
   const [clock, setClock] = useState(() => restored?.clock ?? createChessClock("blitz-5-0"));
@@ -84,6 +85,8 @@ function App() {
   const [pgnText, setPgnText] = useState("");
   const [pgnMessage, setPgnMessage] = useState("");
   const [pgnPreview, setPgnPreview] = useState<ParsedPGN | null>(null);
+  const promotionDialogRef = useRef<HTMLElement | null>(null);
+  const promotionReturnFocusRef = useRef<string | null>(null);
   const [saveNotice, setSaveNotice] = useState(() => initialSave.status === "available"
     ? "Saved game restored. The clock is paused; offline time is not charged."
     : initialSave.status === "legacy" ? initialSave.message
@@ -139,6 +142,18 @@ function App() {
     return () => window.removeEventListener("pagehide", persistOnHide);
   }, []);
 
+  useEffect(() => {
+    if (pendingPromotion) {
+      promotionDialogRef.current?.querySelector<HTMLButtonElement>("button")?.focus();
+      return;
+    }
+    const returnTo = promotionReturnFocusRef.current;
+    if (returnTo) {
+      promotionReturnFocusRef.current = null;
+      document.querySelector<HTMLButtonElement>(`[data-square="${returnTo}"]`)?.focus();
+    }
+  }, [pendingPromotion]);
+
   function finishMove(intent: MoveIntent) {
     const now = Date.now();
     const checkedClock = tickClock(clock, now);
@@ -155,12 +170,14 @@ function App() {
 
   function selectSquare(square: Square) {
     if (gameOver || replaying || pendingPromotion) return;
+    setKeyboardFocusSquare(square);
     const currentSelected = selected;
     const name = formatSquare(square);
     if (currentSelected && legalTargets.has(name)) {
       const intent = legalIntents.find((candidate) => formatSquare(candidate.to) === name)!;
       const moving = pieceAt(position, currentSelected);
       if (moving?.kind === "pawn" && (square.rank === 1 || square.rank === 8)) {
+        promotionReturnFocusRef.current = formatSquare(square);
         setPendingPromotion({ from: currentSelected, to: square });
       } else {
         finishMove(intent);
@@ -200,6 +217,30 @@ function App() {
     setSelectedSquare(null);
     setPendingPromotion(null);
     setFenMessage("Position loaded. Move history starts from this position.");
+  }
+
+  function cancelPromotion() {
+    if (pendingPromotion) promotionReturnFocusRef.current = formatSquare(pendingPromotion.from);
+    setPendingPromotion(null);
+  }
+
+  function handlePromotionKeyDown(event: React.KeyboardEvent<HTMLElement>) {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      cancelPromotion();
+      return;
+    }
+    if (event.key !== "Tab") return;
+    const buttons = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>("button:not([disabled])"));
+    const first = buttons[0];
+    const last = buttons.at(-1);
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last?.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first?.focus();
+    }
   }
 
   function exportPgn() {
@@ -350,9 +391,25 @@ function App() {
                 return <button
                   key={name}
                   type="button"
+                  data-square={name}
+                  tabIndex={formatSquare(keyboardFocusSquare) === name ? 0 : -1}
                   className={`square ${isLight ? "light" : "dark"}${isSelected ? " selected" : ""}${isTarget ? " target" : ""}`}
                   aria-label={`${name}, ${accessiblePiece}${isSelected ? ", selected" : ""}${isTarget ? ", legal destination" : ""}`}
                   aria-pressed={isSelected}
+                  onKeyDown={(event) => {
+                    if (event.key === "Escape" && selectedSquare) {
+                      event.preventDefault();
+                      setSelectedSquare(null);
+                      return;
+                    }
+                    const destination = arrowKeySquare(square, event.key, orientation);
+                    if (destination) {
+                      event.preventDefault();
+                      const targetName = formatSquare(destination);
+                      setKeyboardFocusSquare(destination);
+                      event.currentTarget.closest(".board")?.querySelector<HTMLButtonElement>(`[data-square="${targetName}"]`)?.focus();
+                    }
+                  }}
                   onClick={() => selectSquare(square)}
                   disabled={gameOver || replaying || pendingPromotion !== null}
                 >
@@ -363,12 +420,15 @@ function App() {
               })}
             </div>
           </div>
+          <p className="sr-only" role="status" aria-live="polite">{selectedSquare && pieceAt(position, selectedSquare)
+            ? `${label(pieceAt(position, selectedSquare)!.color)} ${label(pieceAt(position, selectedSquare)!.kind)} on ${formatSquare(selectedSquare)} selected. Legal destinations: ${Array.from(legalTargets).join(", ") || "none"}. Press Escape to cancel.`
+            : ""}</p>
           <div className="board-caption"><span>{orientation === "white" ? "White at bottom" : "Black at bottom"}</span><span>{position.fullmoveNumber === 1 && position.activeColor === "white" ? "Ready to begin" : `Move ${position.fullmoveNumber}`}</span></div>
         </div>
       </section>
 
       {pendingPromotion && <div className="promotion-backdrop">
-        <section className="promotion-dialog" role="dialog" aria-modal="true" aria-labelledby="promotion-title">
+        <section ref={promotionDialogRef} className="promotion-dialog" role="dialog" aria-modal="true" aria-labelledby="promotion-title" onKeyDown={handlePromotionKeyDown}>
           <h2 id="promotion-title">Choose a promotion</h2>
           <p>Promote your pawn to:</p>
           <div className="promotion-options">
@@ -376,7 +436,7 @@ function App() {
               <span aria-hidden="true">{GLYPHS[`${position.activeColor}-${promotion}`]}</span>{label(promotion)}
             </button>)}
           </div>
-          <button className="cancel-promotion" type="button" onClick={() => setPendingPromotion(null)}>Cancel</button>
+          <button className="cancel-promotion" type="button" onClick={cancelPromotion}>Cancel</button>
         </section>
       </div>}
       <footer><span>Local-first by design</span><span>Rules, sessions, and outcomes from chess-core</span></footer>

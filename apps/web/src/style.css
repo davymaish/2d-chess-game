@@ -85,3 +85,14 @@ footer { min-height: 60px; border-top: 1px solid #ffffff18; display: flex; justi
 @media (max-width: 760px) { .app-shell { padding: 0 5vw; }.topbar { height: 68px; }.game-layout { grid-template-columns: 1fr; gap: 30px; padding: 36px 0 42px; }.game-info { max-width: none; }.eyebrow { margin-bottom: 15px; }.lede { margin-top: 16px; font-size: 14px; }.turn-card { margin-top: 18px; }.keyboard-hint { margin-top: 12px; }.board-column { justify-self: center; width: min(100%, 560px); }.piece { font-size: clamp(24px, 10vw, 56px); } }
 @media (max-width: 380px) { .app-shell { padding: 0 3vw; }.square.selected { box-shadow: inset 0 0 0 3px #e8c66f; }.square.target:has(.piece)::after { border-width: 3px; } }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; transition-duration: .01ms !important; } }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+@media (prefers-contrast: more) { .square.selected { outline: 3px solid #fff; outline-offset: -4px; }.square.target::after { background: transparent; border: 2px solid currentColor; }.square:focus-visible { outline-color: #fff; } }
+@media (forced-colors: active) {
+  .square.light { forced-color-adjust: none; background: Canvas; color: CanvasText; }
+  .square.dark { forced-color-adjust: none; background: CanvasText; color: Canvas; }
+  .square.selected { outline: 3px solid Highlight; outline-offset: -4px; }
+  .square.target::after { background: transparent; border: 2px solid Highlight; }
+  .square:focus-visible, button:focus-visible, textarea:focus-visible { outline-color: Highlight; }
+  .promotion-backdrop { background: Canvas; }
+  .promotion-dialog { background: Canvas; color: CanvasText; border: 2px solid CanvasText; }
+}

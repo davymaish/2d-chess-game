@@ -16,3 +16,17 @@ export function orientedBoardSquares(orientation: BoardOrientation): readonly Sq
   }
   return squares;
 }
+
+/** Returns the visually adjacent square for a board arrow key, or null at an edge. */
+export function arrowKeySquare(square: Square, key: string, orientation: BoardOrientation): Square | null {
+  const squares = orientedBoardSquares(orientation);
+  const index = squares.findIndex((candidate) => candidate.file === square.file && candidate.rank === square.rank);
+  if (index < 0) return null;
+  const row = Math.floor(index / 8);
+  const column = index % 8;
+  const destination = key === "ArrowLeft" && column > 0 ? index - 1
+    : key === "ArrowRight" && column < 7 ? index + 1
+      : key === "ArrowUp" && row > 0 ? index - 8
+        : key === "ArrowDown" && row < 7 ? index + 8 : -1;
+  return destination < 0 ? null : squares[destination]!;
+}
