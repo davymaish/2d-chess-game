@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatSquare, parseSquare } from "@2d-chess/chess-core";
+import { formatSquare, parseFEN, parseSquare } from "@2d-chess/chess-core";
 import {
   closeReplay,
   createGameSession,
@@ -73,5 +73,43 @@ describe("game session", () => {
     expect(getReplayState(replay)).toMatchObject({ index: -1, totalMoves: 0, atStart: true, atEnd: true });
     expect(lastReplayPosition(replay)).not.toBeNull();
     expect(closeReplay(replay).replayIndex).toBeNull();
+  });
+
+  it("retains deep immutable position and move values in session snapshots", () => {
+    const session = play(createGameSession(), "e2", "e4");
+    const snapshot = session.snapshots[1]!;
+    const record = getMoveHistory(session)[0]!;
+    expect(Object.isFrozen(session.snapshots)).toBe(true);
+    expect(Object.isFrozen(snapshot)).toBe(true);
+    expect(Object.isFrozen(snapshot.position)).toBe(true);
+    expect(Object.isFrozen(snapshot.position.pieces)).toBe(true);
+    expect(Object.isFrozen(snapshot.position.pieces[0]!.square)).toBe(true);
+    expect(Object.isFrozen(snapshot.position.pieces[0]!.piece)).toBe(true);
+    expect(Object.isFrozen(record)).toBe(true);
+    expect(Object.isFrozen(record.from)).toBe(true);
+    expect(Object.isFrozen(record.piece)).toBe(true);
+  });
+
+  it("restores castling, en-passant, and promotion state across undo and redo", () => {
+    const castleStart = createGameSession(parseFEN("r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1"));
+    const castled = play(castleStart, "e1", "g1");
+    expect(getSessionPosition(castled).castlingRights).toEqual(["black-king-side", "black-queen-side"]);
+    expect(getSessionPosition(undoSession(castled))).toEqual(getSessionPosition(castleStart));
+    expect(getSessionPosition(redoSession(undoSession(castled)))).toEqual(getSessionPosition(castled));
+
+    const epStart = createGameSession(parseFEN("4k3/8/8/3pP3/8/8/8/4K3 w - d6 0 2"));
+    const enPassant = play(epStart, "e5", "d6");
+    expect(getSessionPosition(enPassant).pieces.some(({ square }) => formatSquare(square) === "d5")).toBe(false);
+    expect(getSessionPosition(undoSession(enPassant))).toEqual(getSessionPosition(epStart));
+    expect(getSessionPosition(redoSession(undoSession(enPassant)))).toEqual(getSessionPosition(enPassant));
+
+    const promotionStart = createGameSession(parseFEN("4k3/P7/8/8/8/8/8/4K3 w - - 0 1"));
+    const promotion = playSessionMove(promotionStart, { from: sq("a7"), to: sq("a8"), promotion: "knight" });
+    expect(promotion.kind).toBe("accepted");
+    if (promotion.kind === "accepted") {
+      expect(getSessionPosition(promotion.session).pieces.find(({ square }) => formatSquare(square) === "a8")?.piece.kind).toBe("knight");
+      expect(getSessionPosition(undoSession(promotion.session))).toEqual(getSessionPosition(promotionStart));
+      expect(getSessionPosition(redoSession(undoSession(promotion.session)))).toEqual(getSessionPosition(promotion.session));
+    }
   });
 });
