@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import {
   formatSquare,
@@ -10,6 +10,8 @@ import {
 import type { MoveIntent, MoveRecord, PGNResult, ParsedPGN, PromotionPieceKind, Square } from "@2d-chess/chess-core";
 import { legalIntentsFrom } from "./game.js";
 import { serializeSessionPGN } from "./pgn-session.js";
+import { inspectGameSaveStorage, saveGameToStorage } from "./persistence.js";
+import type { SaveInspection } from "./persistence.js";
 import { orientedBoardSquares } from "./orientation.js";
 import type { BoardOrientation } from "./orientation.js";
 import {
@@ -69,17 +71,36 @@ function moveLabel(move: MoveRecord, index: number): string {
 }
 
 function App() {
-  const [session, setSession] = useState(() => createGameSession());
+  const [initialSave] = useState<SaveInspection>(() => inspectGameSaveStorage());
+  const restored = initialSave.status === "available" ? initialSave.save : null;
+  const [session, setSession] = useState(() => restored?.session ?? createGameSession());
   const [pendingPromotion, setPendingPromotion] = useState<PendingPromotion | null>(null);
   const [selectedSquare, setSelectedSquare] = useState<Square | null>(null);
-  const [clockPreset, setClockPreset] = useState<ClockPresetId>("blitz-5-0");
-  const [clock, setClock] = useState(() => createChessClock("blitz-5-0"));
+  const [clockPreset, setClockPreset] = useState<ClockPresetId>(() => restored?.clockPreset ?? "blitz-5-0");
+  const [clock, setClock] = useState(() => restored?.clock ?? createChessClock("blitz-5-0"));
   const [orientation, setOrientation] = useState<BoardOrientation>("white");
   const [fenText, setFenText] = useState("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
   const [fenMessage, setFenMessage] = useState("");
   const [pgnText, setPgnText] = useState("");
   const [pgnMessage, setPgnMessage] = useState("");
   const [pgnPreview, setPgnPreview] = useState<ParsedPGN | null>(null);
+  const [saveNotice, setSaveNotice] = useState(() => initialSave.status === "available"
+    ? "Saved game restored. The clock is paused; offline time is not charged."
+    : initialSave.status === "legacy" ? initialSave.message
+      : initialSave.status === "invalid" || initialSave.status === "outdated"
+        ? `Saved data was preserved: ${initialSave.message}`
+        : initialSave.status === "unavailable" ? initialSave.message : "Game saves automatically on this device.");
+  const persistenceRef = useRef({ session, clockPreset, clock });
+  persistenceRef.current = { session, clockPreset, clock };
+  const saveNowRef = useRef<() => void>(() => undefined);
+  saveNowRef.current = () => {
+    const current = persistenceRef.current;
+    const result = saveGameToStorage(current.session, current.clockPreset, current.clock);
+    const message = result.status === "saved" ? "Game saved on this device."
+      : result.status === "cleared" ? "Completed game save cleared."
+        : result.message;
+    setSaveNotice((previous) => previous === message ? previous : message);
+  };
   const position = getSessionPosition(session);
   const status = useMemo(() => getSessionStatus(session), [session]);
   const replay = getReplayState(session);
@@ -101,6 +122,22 @@ function App() {
   useEffect(() => {
     if (gameOver && clock.running) setClock((current) => pauseClock(current, Date.now()));
   }, [gameOver, clock.running]);
+
+  useEffect(() => {
+    saveNowRef.current();
+  }, [session, clockPreset, clock.running, clock.started, clock.flaggedColor]);
+
+  useEffect(() => {
+    if (!clock.running) return;
+    const timer = window.setInterval(() => saveNowRef.current(), 1000);
+    return () => window.clearInterval(timer);
+  }, [clock.running]);
+
+  useEffect(() => {
+    const persistOnHide = () => saveNowRef.current();
+    window.addEventListener("pagehide", persistOnHide);
+    return () => window.removeEventListener("pagehide", persistOnHide);
+  }, []);
 
   function finishMove(intent: MoveIntent) {
     const now = Date.now();
@@ -241,6 +278,7 @@ function App() {
               setSelectedSquare(null);
             }} disabled={replaying || session.cursor >= session.snapshots.length - 1}>Redo</button>
           </div>
+          <p className="save-status" role="status" aria-live="polite">{saveNotice}</p>
           {!replaying ? <button className="replay-toggle" type="button" onClick={() => { setClock(pauseClock(clock, Date.now())); setSession(openReplay(session)); }} disabled={history.length === 0}>Review moves</button> : <div className="replay-controls" aria-label="Replay controls">
             <button type="button" aria-label="Replay from start" onClick={() => moveReplay(firstReplayPosition(session))} disabled={replay.atStart}>|◀</button>
             <button type="button" aria-label="Previous replay move" onClick={() => moveReplay(stepReplay(session, "previous"))} disabled={replay.atStart}>◀</button>
