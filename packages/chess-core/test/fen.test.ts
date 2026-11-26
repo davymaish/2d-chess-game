@@ -38,4 +38,18 @@ describe("FEN import and export", () => {
   it("rejects an en-passant target without its corresponding double-moved pawn", () => {
     expect(() => parseFEN("4k3/8/8/8/8/8/8/4K3 w - e6 0 1")).toThrow(/corresponding double-moved pawn/);
   });
+
+  it("rejects inputs longer than the V1 128-character limit", () => {
+    const fen = "4k3/8/8/8/8/8/8/4K3 w - - 0 1";
+    expect(parseFEN(fen.padEnd(128, " ")).halfmoveClock).toBe(0);
+    expect(() => parseFEN(fen.padEnd(129, " "))).toThrow(/128 characters or fewer/);
+  });
+
+  it("rejects leading zeroes in the halfmove counter", () => {
+    expect(() => parseFEN("4k3/8/8/8/8/8/8/4K3 w - - 00 1")).toThrow(/without leading zeroes/);
+  });
+
+  it("accepts a position where the active side is in check", () => {
+    expect(parseFEN("k3r3/8/8/8/8/8/8/4K3 w - - 0 1").activeColor).toBe("white");
+  });
 });
