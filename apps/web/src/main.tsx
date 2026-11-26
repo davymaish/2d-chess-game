@@ -2,13 +2,13 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import {
   formatSquare,
-  parseFEN,
   parsePGN,
   pieceAt,
   serializeFEN,
 } from "@2d-chess/chess-core";
 import type { MoveIntent, MoveRecord, PGNResult, ParsedPGN, PromotionPieceKind, Square } from "@2d-chess/chess-core";
 import { legalIntentsFrom } from "./game.js";
+import { FEN_REPLACEMENT_CONFIRMATION, hasFenReplacementProgress, prepareFenImport } from "./fen-import.js";
 import { serializeSessionPGN } from "./pgn-session.js";
 import { inspectGameSaveStorage, saveGameToStorage } from "./persistence.js";
 import type { SaveInspection } from "./persistence.js";
@@ -182,16 +182,24 @@ function App() {
   }
 
   function loadFen() {
-    try {
-      const imported = parseFEN(fenText);
-      setSession(createGameSession(imported));
-      setClock(createChessClock(clockPreset, imported.activeColor));
-      setSelectedSquare(null);
-      setPendingPromotion(null);
-      setFenMessage("Position loaded. Move history starts from this position.");
-    } catch (error) {
-      setFenMessage(error instanceof Error ? error.message : "Could not load this FEN position.");
+    const decision = prepareFenImport(
+      fenText,
+      hasFenReplacementProgress(session, clock.started, pendingPromotion !== null),
+      () => window.confirm(FEN_REPLACEMENT_CONFIRMATION),
+    );
+    if (decision.kind === "cancelled") {
+      setFenMessage("Position load cancelled; the current game was not changed.");
+      return;
     }
+    if (decision.kind === "invalid") {
+      setFenMessage(decision.message);
+      return;
+    }
+    setSession(createGameSession(decision.position));
+    setClock(createChessClock(clockPreset, decision.position.activeColor));
+    setSelectedSquare(null);
+    setPendingPromotion(null);
+    setFenMessage("Position loaded. Move history starts from this position.");
   }
 
   function exportPgn() {
