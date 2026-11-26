@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createInitialPosition, parseSquare } from "@2d-chess/chess-core";
 import { legalIntentsFrom } from "./game.js";
+import { createGameSession, getSessionPosition, openReplay, playSessionMove, seekReplay } from "./session.js";
 
 const square = (name: string) => parseSquare(name)!;
 
@@ -27,5 +28,25 @@ describe("legalIntentsFrom", () => {
     };
     expect(legalIntentsFrom(position, square("e7")).map((move) => move.promotion).sort())
       .toEqual(["bishop", "knight", "queen", "rook"]);
+  });
+
+  it("provides legal-move hints for the replayed side without changing the replay session", () => {
+    const firstMove = playSessionMove(createGameSession(), { from: square("e2"), to: square("e4") });
+    expect(firstMove.kind).toBe("accepted");
+    if (firstMove.kind !== "accepted") throw new Error("The opening move should be accepted.");
+
+    const replay = seekReplay(openReplay(firstMove.session), 0);
+    expect(replay).not.toBeNull();
+    if (!replay) throw new Error("The first move should be available in replay.");
+
+    const replayPosition = getSessionPosition(replay);
+    expect(legalIntentsFrom(replayPosition, square("e7")).map(({ to }) => `${to.file}${to.rank}`).sort())
+      .toEqual(["e5", "e6"]);
+
+    const beforeHintAttempt = JSON.stringify(replay);
+    expect(playSessionMove(replay, { from: square("e7"), to: square("e5") }))
+      .toEqual({ kind: "rejected", reason: "replay-active" });
+    expect(JSON.stringify(replay)).toBe(beforeHintAttempt);
+    expect(getSessionPosition(replay)).toBe(replayPosition);
   });
 });

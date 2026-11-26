@@ -109,7 +109,7 @@ function App() {
   const replay = getReplayState(session);
   const history = getMoveHistory(session);
   const boardSquares = orientedBoardSquares(orientation);
-  const selected = replay ? null : selectedSquare;
+  const selected = selectedSquare;
   const legalIntents = selected ? legalIntentsFrom(position, selected) : [];
   const legalTargets = new Set(legalIntents.map((intent) => formatSquare(intent.to)));
   const timeout = clock.flaggedColor ? getTimeoutOutcome(position, clock.flaggedColor) : null;
@@ -169,11 +169,12 @@ function App() {
   }
 
   function selectSquare(square: Square) {
-    if (gameOver || replaying || pendingPromotion) return;
+    if ((gameOver && !replaying) || pendingPromotion) return;
     setKeyboardFocusSquare(square);
     const currentSelected = selected;
     const name = formatSquare(square);
     if (currentSelected && legalTargets.has(name)) {
+      if (replaying) return;
       const intent = legalIntents.find((candidate) => formatSquare(candidate.to) === name)!;
       const moving = pieceAt(position, currentSelected);
       if (moving?.kind === "pawn" && (square.rank === 1 || square.rank === 8)) {
@@ -264,7 +265,10 @@ function App() {
   }
 
   function moveReplay(target: ReturnType<typeof stepReplay>) {
-    if (target) setSession(target);
+    if (target) {
+      setSession(target);
+      setSelectedSquare(null);
+    }
   }
 
   const turnLabel = position.activeColor === "white" ? "White to move" : "Black to move";
@@ -328,13 +332,14 @@ function App() {
             }} disabled={replaying || session.cursor >= session.snapshots.length - 1}>Redo</button>
           </div>
           <p className="save-status" role="status" aria-live="polite">{saveNotice}</p>
-          {!replaying ? <button className="replay-toggle" type="button" onClick={() => { setClock(pauseClock(clock, Date.now())); setSession(openReplay(session)); }} disabled={history.length === 0}>Review moves</button> : <div className="replay-controls" aria-label="Replay controls">
+          {!replaying ? <button className="replay-toggle" type="button" onClick={() => { setSelectedSquare(null); setClock(pauseClock(clock, Date.now())); setSession(openReplay(session)); }} disabled={history.length === 0}>Review moves</button> : <div className="replay-controls" aria-label="Replay controls">
             <button type="button" aria-label="Replay from start" onClick={() => moveReplay(firstReplayPosition(session))} disabled={replay.atStart}>|◀</button>
             <button type="button" aria-label="Previous replay move" onClick={() => moveReplay(stepReplay(session, "previous"))} disabled={replay.atStart}>◀</button>
             <span aria-live="polite">{replay.index < 0 ? "Start" : `${replay.index + 1} / ${replay.totalMoves}`}</span>
             <button type="button" aria-label="Next replay move" onClick={() => moveReplay(stepReplay(session, "next"))} disabled={replay.atEnd}>▶</button>
             <button type="button" aria-label="Replay to end" onClick={() => moveReplay(lastReplayPosition(session))} disabled={replay.atEnd}>▶|</button>
             <button type="button" onClick={() => { setSession(closeReplay(session)); setSelectedSquare(null); }}>Exit review</button>
+            <span className="replay-hint-note" role="note">Select a piece to see legal-move hints. Moves cannot be played in review.</span>
           </div>}
           <p className="keyboard-hint">Keyboard and touch: focus a square and press Enter or Space.</p>
           <section className="fen-panel" aria-labelledby="fen-title">
@@ -366,10 +371,10 @@ function App() {
             {history.map((move, index) => <li key={`${formatSquare(move.from)}-${formatSquare(move.to)}-${index}`}>
               <button type="button" aria-current={replay?.index === index ? "step" : undefined}
                 onClick={() => {
-                  if (!replaying) { setClock(pauseClock(clock, Date.now())); setSession(openReplay(session)); }
+                  if (!replaying) { setSelectedSquare(null); setClock(pauseClock(clock, Date.now())); setSession(openReplay(session)); }
                   const base = replaying ? session : openReplay(session);
                   const destination = seekReplay(base, index);
-                  if (destination) setSession(destination);
+                  if (destination) { setSession(destination); setSelectedSquare(null); }
                 }}>{moveLabel(move, index)}</button>
             </li>)}
           </ol>}
@@ -394,7 +399,7 @@ function App() {
                   data-square={name}
                   tabIndex={formatSquare(keyboardFocusSquare) === name ? 0 : -1}
                   className={`square ${isLight ? "light" : "dark"}${isSelected ? " selected" : ""}${isTarget ? " target" : ""}`}
-                  aria-label={`${name}, ${accessiblePiece}${isSelected ? ", selected" : ""}${isTarget ? ", legal destination" : ""}`}
+                  aria-label={`${name}, ${accessiblePiece}${isSelected ? ", selected" : ""}${isTarget ? (replaying ? ", legal move hint" : ", legal destination") : ""}`}
                   aria-pressed={isSelected}
                   onKeyDown={(event) => {
                     if (event.key === "Escape" && selectedSquare) {
@@ -411,7 +416,7 @@ function App() {
                     }
                   }}
                   onClick={() => selectSquare(square)}
-                  disabled={gameOver || replaying || pendingPromotion !== null}
+                  disabled={pendingPromotion !== null || (gameOver && !replaying)}
                 >
                   {col === 0 && <span className="rank-coordinate" aria-hidden="true">{square.rank}</span>}
                   {row === 7 && <span className="file-coordinate" aria-hidden="true">{square.file}</span>}
@@ -421,7 +426,7 @@ function App() {
             </div>
           </div>
           <p className="sr-only" role="status" aria-live="polite">{selectedSquare && pieceAt(position, selectedSquare)
-            ? `${label(pieceAt(position, selectedSquare)!.color)} ${label(pieceAt(position, selectedSquare)!.kind)} on ${formatSquare(selectedSquare)} selected. Legal destinations: ${Array.from(legalTargets).join(", ") || "none"}. Press Escape to cancel.`
+            ? `${label(pieceAt(position, selectedSquare)!.color)} ${label(pieceAt(position, selectedSquare)!.kind)} on ${formatSquare(selectedSquare)} selected. ${replaying ? "Legal-move hints" : "Legal destinations"}: ${Array.from(legalTargets).join(", ") || "none"}. ${replaying ? "Review is read-only. " : ""}Press Escape to clear selection.`
             : ""}</p>
           <div className="board-caption"><span>{orientation === "white" ? "White at bottom" : "Black at bottom"}</span><span>{position.fullmoveNumber === 1 && position.activeColor === "white" ? "Ready to begin" : `Move ${position.fullmoveNumber}`}</span></div>
         </div>
