@@ -4,6 +4,7 @@ import { getGameStatus } from "./moves.js";
 import type { CastlingRight, Color, PieceKind, PieceOnSquare, Position, Square } from "./types.js";
 
 const FILES = ["a", "b", "c", "d", "e", "f", "g", "h"] as const;
+const MAX_FEN_LENGTH = 128;
 const FEN_TO_KIND: Readonly<Record<string, PieceKind>> = {
   k: "king", q: "queen", r: "rook", b: "bishop", n: "knight", p: "pawn",
 };
@@ -66,6 +67,7 @@ function validateMetadata(position: Position): void {
 /** Parse the six-field FEN notation into an immutable, validated position. */
 export function parseFEN(fen: string): Position {
   if (typeof fen !== "string") fail("input must be a string");
+  if (fen.length > MAX_FEN_LENGTH) fail(`input must be ${MAX_FEN_LENGTH} characters or fewer`);
   const fields = fen.trim().split(/\s+/);
   if (fields.length !== 6 || fields.some((field) => field.length === 0)) fail("expected six fields");
   const [placement, activeField, castlingField, enPassantField, halfmoveField, fullmoveField] = fields as [string, string, string, string, string, string];
@@ -108,7 +110,7 @@ export function parseFEN(fen: string): Position {
     enPassantTarget = parseSquare(enPassantField);
     if (!enPassantTarget) fail("en-passant target must be '-' or a valid square");
   }
-  if (!/^\d+$/.test(halfmoveField) || !Number.isSafeInteger(Number(halfmoveField))) fail("halfmove clock must be a nonnegative safe integer");
+  if (!/^(0|[1-9]\d*)$/.test(halfmoveField) || !Number.isSafeInteger(Number(halfmoveField))) fail("halfmove clock must be a nonnegative safe integer without leading zeroes");
   if (!/^[1-9]\d*$/.test(fullmoveField) || !Number.isSafeInteger(Number(fullmoveField))) fail("fullmove number must be a positive safe integer");
   for (const color of ["white", "black"] as const) {
     if (counts[color].all > 16 || counts[color].pawns > 8) fail(`too many ${color} pieces or pawns`);
